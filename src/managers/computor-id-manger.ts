@@ -1,21 +1,72 @@
+import { THREE_MINUTES } from "../consts/time";
 import StratumEvents from "../stratum/stratum-events";
+import LOG from "../utils/logger";
+import fetchListIds from "../utils/qli-apis/fetch-list-ids";
+import fetchScore from "../utils/qli-apis/fetch-score";
+import ApiData from "../utils/qli-apis/global-data";
+import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
 
 export namespace ComputorIdManager {
+    let miningConfig = {
+        diffToBalance: 1000, // hashrate difference to balance
+    };
     let computorIdMap: {
         //ID
         [key: string]: {
             workers: {
                 //socketUUID: hashrate
-                [key: string]: number;
+                [key: string]: number | undefined;
             };
             totalHashrate: number;
             lscore: number;
             ascore: number;
             bcscore: number;
             mining: boolean;
+            followingAvgScore: boolean;
+            targetScore: number | undefined;
+            alias: string;
+            ip: string;
         };
-    } = {};
+    } = {
+        // MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
+        //     workers: {},
+        //     totalHashrate: 0,
+        //     lscore: 0,
+        //     ascore: 0,
+        //     bcscore: 0,
+        //     mining: false,
+        //     alias: "",
+        // },
+        // RGGNEEZYXQYTYFNFTLQYZKNNFMSCTBRSNZJIQGCXKAVVELCXQQQRMAKDDGOA: {
+        //     workers: {},
+        //     totalHashrate: 0,
+        //     lscore: 0,
+        //     ascore: 0,
+        //     bcscore: 0,
+        //     mining: false,
+        //     alias: "",
+        // },
+    };
+
+    export async function init() {
+        await setAliasForAllComputorId();
+        await setScoreForAllComputorId();
+
+        setInterval(async () => {
+            try {
+                await setScoreForAllComputorId();
+                await syncAvgScore();
+                checkAndRemoveIfTargetScoreReached();
+
+                if (tryLoadAllWorkersToComputorId()?.canBalanceHashrate) {
+                    autoBalanceComputorIdHashrate(true);
+                }
+            } catch (error: any) {
+                LOG("error", error.message);
+            }
+        }, THREE_MINUTES);
+    }
 
     export function createRandomIdWithMaxTotalHashrate(
         maxTotalHashrate: number,
@@ -39,11 +90,15 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function getLowestHashrateActiveComputorId() {
+    export function getLowestHashrateActiveComputorId(
+        needEnableFollow: boolean = false
+    ) {
         let computorId = null;
         let hashrate = Infinity;
         for (let id in computorIdMap) {
             if (!computorIdMap[id].mining) continue;
+            if (needEnableFollow && !computorIdMap[id].followingAvgScore)
+                continue;
             if (computorIdMap[id].totalHashrate < hashrate) {
                 computorId = id;
                 hashrate = computorIdMap[id].totalHashrate;
@@ -73,6 +128,87 @@ export namespace ComputorIdManager {
         return count;
     }
 
+    export function syncNewComputorIdForSockets() {
+        let socketMap = SocketManager.getSocketMap();
+        for (let socketUUID in socketMap) {
+            let thisSocket = socketMap[socketUUID];
+            let currentComputorId = getComputorIdBySocketUUID(socketUUID);
+            if (currentComputorId !== thisSocket.computorId) {
+                thisSocket.write(
+                    StratumEvents.getNewComputorIdPacket(
+                        currentComputorId as string
+                    )
+                );
+                thisSocket.computorId = currentComputorId as string;
+            }
+        }
+    }
+
+    export function isThereComputorIdFollowingTargetScore() {
+        for (let computorId in computorIdMap) {
+            if (!isNaN(computorIdMap[computorId].targetScore as number))
+                return true;
+        }
+        return false;
+    }
+
+    export function checkAndRemoveIfTargetScoreReached() {
+        for (let computorId in computorIdMap) {
+            if (
+                !isNaN(computorIdMap[computorId].targetScore as number) &&
+                computorIdMap[computorId].lscore >=
+                    (computorIdMap[computorId].targetScore as number)
+            ) {
+                computorIdMap[computorId].targetScore = undefined;
+            }
+        }
+    }
+
+    export function tryLoadAllWorkersToComputorId() {
+        let lowestTotalHashrateIdEnabledFollowing =
+            getLowestHashrateActiveComputorId(true) as string;
+
+        if (!lowestTotalHashrateIdEnabledFollowing) {
+            return {
+                canBalanceHashrate: true,
+            };
+        }
+
+        if (isThereComputorIdFollowingTargetScore()) {
+            return {
+                canBalanceHashrate: false,
+            };
+        }
+
+        if (
+            (getComputorId(lowestTotalHashrateIdEnabledFollowing)
+                .lscore as number) < ApiData.avgScore
+        ) {
+            getComputorId(lowestTotalHashrateIdEnabledFollowing).targetScore =
+                ApiData.avgScore * 1.06;
+
+            for (let computorId in computorIdMap) {
+                if (computorId === lowestTotalHashrateIdEnabledFollowing)
+                    continue;
+
+                moveAllWorkersFromComputorId(
+                    computorId,
+                    lowestTotalHashrateIdEnabledFollowing
+                );
+            }
+
+            syncNewComputorIdForSockets();
+
+            return {
+                canBalanceHashrate: false,
+            };
+        }
+
+        return {
+            canBalanceHashrate: true,
+        };
+    }
+
     export function autoBalanceComputorIdHashrate(isBroadcast: boolean = true) {
         let maxHashrate = getComputorId(
             getHighestHashrateActiveComputorId() || ""
@@ -83,6 +219,7 @@ export namespace ComputorIdManager {
         let totalHashrate = getTotalHashrateActiveComputorId();
 
         if (isNaN(maxHashrate) || isNaN(minHashrate)) return;
+        if (maxHashrate - minHashrate < miningConfig.diffToBalance) return;
 
         let avgHashrate = totalHashrate / getNumberOfActiveComputorId();
         let positiveDiffArr: any[] = [];
@@ -114,7 +251,9 @@ export namespace ComputorIdManager {
                     .map((workerUuid) => {
                         return {
                             uuid: workerUuid,
-                            currentHashrate: theComputorId.workers[workerUuid],
+                            currentHashrate: theComputorId.workers[
+                                workerUuid
+                            ] as number,
                         };
                     })
                     .sort((a, b) => a.currentHashrate - b.currentHashrate);
@@ -164,6 +303,17 @@ export namespace ComputorIdManager {
         }
     }
 
+    export function updateHashrate(
+        computorId: string,
+        workerUuid: string,
+        newHashrate: number
+    ) {
+        let currentComputorId = getComputorIdBySocketUUID(workerUuid);
+        if (currentComputorId === computorId) {
+            getComputorId(computorId).workers[workerUuid] = newHashrate;
+        }
+    }
+
     export function getTotalHashrateActiveComputorId() {
         let hashrate = 0;
         for (let id in computorIdMap) {
@@ -171,6 +321,45 @@ export namespace ComputorIdManager {
             hashrate += computorIdMap[id].totalHashrate;
         }
         return hashrate;
+    }
+
+    export async function setAliasForAllComputorId() {
+        let data: {
+            identity: string;
+            alias: string;
+        }[] = await fetchListIds();
+        if (!data) return;
+
+        for (let computorId in computorIdMap) {
+            let alias = data.find(
+                (item) => item.identity === computorId
+            )?.alias;
+
+            if (alias) getComputorId(computorId).alias = alias;
+        }
+    }
+
+    export async function setScoreForAllComputorId() {
+        let data: {
+            alias: string;
+            localScore: number;
+            adminScore: number;
+            bcScore: number;
+        }[] = await fetchScore();
+
+        if (!data) return;
+
+        for (let computorId in computorIdMap) {
+            let score = data.find(
+                (item) => item.alias === getComputorId(computorId).alias
+            );
+
+            if (score) {
+                getComputorId(computorId).lscore = score.localScore;
+                getComputorId(computorId).ascore = score.adminScore;
+                getComputorId(computorId).bcscore = score.bcScore;
+            }
+        }
     }
 
     export function addComputorId(computorId: string) {
@@ -181,6 +370,10 @@ export namespace ComputorIdManager {
             ascore: 0,
             bcscore: 0,
             mining: false,
+            followingAvgScore: false,
+            targetScore: undefined,
+            alias: "",
+            ip: "",
         };
     }
 
@@ -203,7 +396,7 @@ export namespace ComputorIdManager {
 
     export function removeWorker(computorId: string, socketUUID: string) {
         computorIdMap[computorId].totalHashrate -=
-            computorIdMap[computorId].workers[socketUUID];
+            computorIdMap[computorId].workers[socketUUID] || 0;
         delete computorIdMap[computorId].workers[socketUUID];
     }
 
@@ -217,7 +410,9 @@ export namespace ComputorIdManager {
 
     export function getComputorIdBySocketUUID(socketUUID: string) {
         for (let computorId in computorIdMap) {
-            if (computorIdMap[computorId].workers[socketUUID]) {
+            if (
+                !isNaN(computorIdMap[computorId].workers[socketUUID] as number)
+            ) {
                 return computorId;
             }
         }
@@ -232,7 +427,7 @@ export namespace ComputorIdManager {
         if (oldComputorId) {
             let hashrate = computorIdMap[oldComputorId].workers[socketUUID];
             removeWorker(oldComputorId, socketUUID);
-            addWorker(computorId, socketUUID, hashrate);
+            addWorker(computorId, socketUUID, hashrate as number);
         }
     }
 
@@ -242,8 +437,8 @@ export namespace ComputorIdManager {
     ) {
         let workers = computorIdMap[oldComputorId].workers;
         for (let socketUUID in workers) {
-            addWorker(newComputorId, socketUUID, workers[socketUUID]);
+            addWorker(newComputorId, socketUUID, workers[socketUUID] as number);
+            removeWorker(oldComputorId, socketUUID);
         }
-        removeComputorId(oldComputorId);
     }
 }

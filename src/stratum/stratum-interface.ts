@@ -12,6 +12,12 @@ namespace StratumInterface {
             seed: string;
             computorId: string;
         }
+
+        export interface ReportHashratePacket {
+            id: number;
+            computorId: string;
+            hashrate: number;
+        }
     }
 
     export namespace Server {

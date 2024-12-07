@@ -7,6 +7,7 @@ namespace StratumEvents {
         NEW_COMPUTOR_ID: 2,
         NEW_SEED: 3,
         SUBMIT_RESULT: 4,
+        REPORT_HASHRATE: 5,
     };
 
     export function getAcceptedSubscribePacket(

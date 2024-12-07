@@ -1,5 +1,5 @@
 {
-    "name": "addons",
+    "name": "custom-client",
     "version": "1.0.0",
     "description": "",
     "main": "index.js",
@@ -13,8 +13,9 @@
     "license": "ISC",
     "dependencies": {
         "bindings": "^1.5.0",
-        "node-addon-api": "^8.3.0",
-        "chalk": "^4.1.2"
+        "chalk": "^4.1.2",
+        "dotenv": "^16.4.7",
+        "node-addon-api": "^8.3.0"
     },
     "gypfile": true,
     "devDependencies": {

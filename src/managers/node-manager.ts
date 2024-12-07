@@ -3,10 +3,13 @@ import LOG from "../utils/logger";
 import { SocketManager } from "./socket-manager";
 import StratumEvents from "../stratum/stratum-events";
 import { FIVE_SECONDS } from "../consts/time";
+import { ComputorIdManager } from "./computor-id-manger";
+
 interface Addon {
     initSocket: (ip: string) => boolean;
     getMiningCurrentMiningSeed: (cb: (seed: string) => void) => void;
     sendSol: (
+        ip: string,
         nonce: string,
         seed: string,
         id: string,
@@ -35,14 +38,23 @@ namespace NodeManager {
         computorId: string
     ): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            addon.sendSol(nonceHex, seedHex, computorId, (isOK: boolean) => {
-                console.log("isOK", isOK);
-                if (isOK) {
-                    resolve(isOK);
-                } else {
-                    reject(isOK);
+            let ip = ComputorIdManager.getComputorId(computorId).ip;
+            if (!ip) {
+                reject(false);
+            }
+            addon.sendSol(
+                ip,
+                nonceHex,
+                seedHex,
+                computorId,
+                (isOK: boolean) => {
+                    if (isOK) {
+                        resolve(isOK);
+                    } else {
+                        reject(isOK);
+                    }
                 }
-            });
+            );
         });
     }
 

@@ -41,10 +41,15 @@ namespace StratumServer {
                         stratumSocket.write(
                             StratumEvents.getAcceptedSubscribePacket(true, null)
                         );
-                        stratumSocket.write(candicateId);
                         stratumSocket.write(
-                            StratumEvents.getNewSeedPacket("0")
+                            StratumEvents.getNewComputorIdPacket(candicateId)
                         );
+                        stratumSocket.write(
+                            StratumEvents.getNewSeedPacket(
+                                NodeManager.getMiningSeed()
+                            )
+                        );
+                        stratumSocket.computorId = candicateId;
                         stratumSocket.isConnected = true;
                         SocketManager.addSocket(stratumSocket);
                         break;
@@ -63,6 +68,18 @@ namespace StratumServer {
                         } catch (e) {
                             stratumSocket.write(
                                 StratumEvents.getSubmitResultPacket(false)
+                            );
+                        }
+                        break;
+                    case StratumEvents.eventsId.REPORT_HASHRATE:
+                        let jsonObjTyped3 =
+                            jsonObj as StratumInterface.Client.ReportHashratePacket;
+
+                        if (jsonObjTyped3.computorId) {
+                            ComputorIdManager.updateHashrate(
+                                jsonObjTyped3.computorId,
+                                stratumSocket.randomUUID,
+                                jsonObjTyped3.hashrate
                             );
                         }
                         break;
@@ -96,7 +113,9 @@ namespace StratumServer {
                 }
             });
 
-            socket.on("end", () => {});
+            socket.on("end", () => {
+                SocketManager.removeSocket(stratumSocket);
+            });
         });
         server.listen(port, () => {
             LOG("stum", `Stratum server is listening on port ${port}`);

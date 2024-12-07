@@ -43,12 +43,13 @@ private:
 class SubmitSolutionWorker : public AsyncWorker
 {
 public:
-    SubmitSolutionWorker(Function &callback, string nonceHex, string seedHex, string computorId)
+    SubmitSolutionWorker(Function &callback, string ip, string nonceHex, string seedHex, string computorId)
         : AsyncWorker(callback)
     {
         this->nonceHex = nonceHex;
         this->seedHex = seedHex;
         this->computorId = computorId;
+        this->ip = ip;
     }
 
     ~SubmitSolutionWorker() {}
@@ -62,8 +63,9 @@ public:
         hexToByte(nonceHex.c_str(), nonce, 32);
         hexToByte(seedHex.c_str(), seed, 32);
         getPublicKeyFromIdentity((const unsigned char *)computorId.c_str(), (unsigned char *)&computorPublicKey);
-
-        isOk = qsocket.sendSolution(computorPublicKey, nonce, seed);
+        Socket sendSocket;
+        isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
+        isOk = sendSocket.sendSolution(computorPublicKey, nonce, seed) && isOk;
     }
 
     void OnOK() override
@@ -77,6 +79,7 @@ private:
     string seedHex;
     string nonceHex;
     string computorId;
+    string ip;
 };
 
 Napi::Boolean
@@ -107,8 +110,8 @@ Value getMiningCurrentMiningSeed(const Napi::CallbackInfo &info)
 }
 Napi::Value sendSol(const Napi::CallbackInfo &info)
 {
-    Function cb = info[3].As<Function>();
-    SubmitSolutionWorker *wk = new SubmitSolutionWorker(cb, info[0].As<Napi::String>(), info[1].As<Napi::String>(), info[2].As<Napi::String>());
+    Function cb = info[4].As<Function>();
+    SubmitSolutionWorker *wk = new SubmitSolutionWorker(cb, info[0].As<Napi::String>(), info[1].As<Napi::String>(), info[2].As<Napi::String>(), info[3].As<Napi::String>());
     wk->Queue();
     return info.Env().Undefined();
 }

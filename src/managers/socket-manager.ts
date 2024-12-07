@@ -17,6 +17,10 @@ namespace SocketManager {
         return socketMap[uuid];
     }
 
+    export function getSocketMap() {
+        return socketMap;
+    }
+
     export function broadcast(data: string) {
         for (let key in socketMap) {
             if (!socketMap[key].isConnected) continue;
