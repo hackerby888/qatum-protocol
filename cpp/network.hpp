@@ -167,6 +167,7 @@ struct Socket
     bool isConnected = false;
     int connect(const char *nodeIp, int nodePort)
     {
+        isConnected = false;
         int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
         timeval tv;
         tv.tv_sec = 2;
@@ -225,7 +226,7 @@ struct Socket
         }
     }
 
-    void receiveDataAll(std::vector<uint8_t> &receivedData)
+    bool receiveDataAll(std::vector<uint8_t> &receivedData)
     {
         receivedData.resize(0);
         uint8_t tmp[1024];
@@ -238,13 +239,14 @@ struct Socket
         }
         if (receivedData.size() == 0)
         {
-            throw std::logic_error("Error: Did not receive any response from node.");
+            return false;
         }
+
+        return true;
     }
 
     void close()
     {
-        cout << "Closing socket" << endl;
         ::close(mSocket);
     }
 
@@ -356,7 +358,10 @@ struct Socket
         }
 
         std::vector<uint8_t> buffer;
-        receiveDataAll(buffer);
+        if (!receiveDataAll(buffer))
+        {
+            return result;
+        }
         uint8_t *data = buffer.data();
         int recvByte = buffer.size();
         int ptr = 0;

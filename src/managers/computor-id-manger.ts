@@ -35,8 +35,11 @@ export namespace ComputorIdManager {
         //     lscore: 0,
         //     ascore: 0,
         //     bcscore: 0,
-        //     mining: false,
+        //     mining: true,
         //     alias: "",
+        //     ip: "",
+        //     followingAvgScore: false,
+        //     targetScore: undefined,
         // },
         // RGGNEEZYXQYTYFNFTLQYZKNNFMSCTBRSNZJIQGCXKAVVELCXQQQRMAKDDGOA: {
         //     workers: {},
@@ -52,7 +55,7 @@ export namespace ComputorIdManager {
     export async function init() {
         await setAliasForAllComputorId();
         await setScoreForAllComputorId();
-
+        await syncAvgScore();
         setInterval(async () => {
             try {
                 await setScoreForAllComputorId();
@@ -293,12 +296,17 @@ export namespace ComputorIdManager {
                 if (!lowestTotalHashrateId) continue;
                 moveWorkerToComputorId(lowestTotalHashrateId, candicate.uuid);
 
-                if (isBroadcast)
-                    SocketManager.getSocket(candicate.uuid)?.write(
+                if (isBroadcast) {
+                    let thisSocket = SocketManager.getSocket(candicate.uuid);
+                    if (!thisSocket) continue;
+                    thisSocket?.write(
                         StratumEvents.getNewComputorIdPacket(
                             lowestTotalHashrateId
                         )
                     );
+                    SocketManager.getSocket(candicate.uuid).computorId =
+                        lowestTotalHashrateId;
+                }
             }
         }
     }
@@ -308,10 +316,8 @@ export namespace ComputorIdManager {
         workerUuid: string,
         newHashrate: number
     ) {
-        let currentComputorId = getComputorIdBySocketUUID(workerUuid);
-        if (currentComputorId === computorId) {
-            getComputorId(computorId).workers[workerUuid] = newHashrate;
-        }
+        console.log(computorId, workerUuid, newHashrate);
+        getComputorId(computorId).workers[workerUuid] = newHashrate;
     }
 
     export function getTotalHashrateActiveComputorId() {
@@ -362,7 +368,8 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function addComputorId(computorId: string) {
+    export function addComputorId(computorId: string, newSettings: any = {}) {
+        if (computorIdMap[computorId]) return;
         computorIdMap[computorId] = {
             workers: {},
             totalHashrate: 0,
@@ -374,6 +381,18 @@ export namespace ComputorIdManager {
             targetScore: undefined,
             alias: "",
             ip: "",
+            ...newSettings,
+        };
+    }
+
+    export function updateComputorId(
+        computorId: string,
+        newSettings: any = {}
+    ) {
+        if (!computorIdMap[computorId]) return;
+        computorIdMap[computorId] = {
+            ...computorIdMap[computorId],
+            ...newSettings,
         };
     }
 

@@ -6,7 +6,7 @@ import { FIVE_SECONDS } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
 
 interface Addon {
-    initSocket: (ip: string) => boolean;
+    initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
     getMiningCurrentMiningSeed: (cb: (seed: string) => void) => void;
     sendSol: (
         ip: string,
@@ -21,14 +21,20 @@ let addon: Addon = bindings("q");
 namespace NodeManager {
     export let internalAddon = addon;
     let currentSeed = "";
+    let nodeIp = "";
     export async function initToNodeSocket(ip: string) {
-        let isOk = addon.initSocket(ip);
-        if (!isOk) {
-            LOG("error", "failed to connect to qubic node");
-            process.exit(1);
-        }
+        nodeIp = ip;
+        await new Promise((resolve, reject) => {
+            addon.initSocket(ip, (isOk: boolean) => {
+                if (isOk) {
+                    resolve(undefined);
+                } else {
+                    reject(undefined);
+                    process.exit(1);
+                }
+            });
+        });
         await syncMiningSeed();
-
         watchMiningSeed();
     }
 
@@ -75,17 +81,20 @@ namespace NodeManager {
         setInterval(async () => {
             let oldSeed = currentSeed;
             await syncMiningSeed();
+            if (oldSeed === "-1") {
+                //no connection to node
+                addon.initSocket(nodeIp, () => {
+                    LOG("node", "reconnected to node");
+                });
+                return;
+            }
             if (oldSeed !== currentSeed) {
                 SocketManager.broadcast(
                     StratumEvents.getNewSeedPacket(currentSeed)
                 );
                 LOG("node", "new seed: " + currentSeed);
             }
-        }, FIVE_SECONDS);
-
-        setInterval(() => {
-            LOG("node", "seed ttt");
-        }, 500);
+        }, FIVE_SECONDS * 2);
     }
 }
 

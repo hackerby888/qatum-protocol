@@ -75,13 +75,13 @@ namespace StratumServer {
                         let jsonObjTyped3 =
                             jsonObj as StratumInterface.Client.ReportHashratePacket;
 
-                        if (jsonObjTyped3.computorId) {
-                            ComputorIdManager.updateHashrate(
-                                jsonObjTyped3.computorId,
-                                stratumSocket.randomUUID,
-                                jsonObjTyped3.hashrate
-                            );
-                        }
+                        ComputorIdManager.updateHashrate(
+                            jsonObjTyped3.computorId ||
+                                stratumSocket.computorId,
+                            stratumSocket.randomUUID,
+                            jsonObjTyped3.hashrate
+                        );
+
                         break;
                     default:
                         socket.destroy();
@@ -118,7 +118,7 @@ namespace StratumServer {
             });
         });
         server.listen(port, () => {
-            LOG("stum", `Stratum server is listening on port ${port}`);
+            LOG("stum", `stratum server is listening on port ${port}`);
         });
     }
 }

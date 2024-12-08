@@ -6,7 +6,8 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "configure": "node-gyp configure",
-        "build": "node-gyp build && npx tsc"
+        "build": "node-gyp build && npx tsc",
+        "start": "node ts-build/index.js"
     },
     "keywords": [],
     "author": "",
@@ -14,11 +15,15 @@
     "dependencies": {
         "bindings": "^1.5.0",
         "chalk": "^4.1.2",
+        "cors": "^2.8.5",
         "dotenv": "^16.4.7",
+        "express": "^4.21.2",
         "node-addon-api": "^8.3.0"
     },
     "gypfile": true,
     "devDependencies": {
-        "@types/bindings": "^1.5.5"
+        "@types/bindings": "^1.5.5",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^5.0.0"
     }
 }
