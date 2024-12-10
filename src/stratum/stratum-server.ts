@@ -65,7 +65,8 @@ namespace StratumServer {
                             stratumSocket.write(
                                 StratumEvents.getSubmitResultPacket(result)
                             );
-                        } catch (e) {
+                        } catch (e: any) {
+                            LOG("error", e.message);
                             stratumSocket.write(
                                 StratumEvents.getSubmitResultPacket(false)
                             );
@@ -115,6 +116,7 @@ namespace StratumServer {
 
             socket.on("end", () => {
                 SocketManager.removeSocket(stratumSocket);
+                ComputorIdManager.removeWorker("", stratumSocket.randomUUID);
             });
         });
         server.listen(port, () => {

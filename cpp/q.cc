@@ -11,6 +11,7 @@ using namespace Napi;
 
 Socket qsocket;
 bool isConnected = false;
+string globalIp;
 
 class ConnectWorker : public AsyncWorker
 {
@@ -54,23 +55,34 @@ public:
 
     void Execute() override
     {
-        CurrentSystemInfo infoz = qsocket.getSystemInfo();
-        bool isOk = true;
-        char *infozPtr = (char *)&infoz;
-        int sum = 0;
-        for (int i = 0; i < sizeof(CurrentSystemInfo); i++)
+        Socket qsocket;
+        bool connectOk = qsocket.connect(globalIp.c_str(), PORT) != -1;
+
+        if (connectOk)
         {
-            sum += (int)infozPtr[i];
+            CurrentSystemInfo infoz = qsocket.getSystemInfo();
+            bool isOk = true;
+            char *infozPtr = (char *)&infoz;
+            int sum = 0;
+            for (int i = 0; i < sizeof(CurrentSystemInfo); i++)
+            {
+                sum += (int)infozPtr[i];
+            }
+            if (sum == 0)
+            {
+                isOk = false;
+            }
+            char hex[64];
+            unsigned char seed[32] __attribute((aligned(32)));
+            memcpy(seed, infoz.randomMiningSeed, 32);
+            byteToHex(seed, hex, 32);
+            seedHex = isOk ? string((const char *)hex, 64) : "-1";
+            qsocket.close();
         }
-        if (sum == 0)
+        else
         {
-            isOk = false;
+            seedHex = "-1";
         }
-        char hex[64];
-        unsigned char seed[32] __attribute((aligned(32)));
-        memcpy(seed, infoz.randomMiningSeed, 32);
-        byteToHex(seed, hex, 32);
-        seedHex = isOk ? string((const char *)hex, 64) : "-1";
     }
 
     void OnOK() override
@@ -130,6 +142,7 @@ initSocket(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
     string ip = info[0].As<Napi::String>();
+    globalIp = ip;
     Function cb = info[1].As<Function>();
     ConnectWorker *wk = new ConnectWorker(cb, ip);
     wk->Queue();

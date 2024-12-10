@@ -181,13 +181,13 @@ struct Socket
 
         if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
         {
-            printf("Error translating command line ip address to usable one.");
+            printf("addon: error translating command line ip address to usable one.");
             return -1;
         }
 
         if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
-            printf("Failed to connect %s\n", nodeIp);
+            printf("addon: failed to connect %s\n", nodeIp);
             return -1;
         }
 
@@ -298,8 +298,8 @@ struct Socket
         _rdrand64_step((unsigned long long *)&packet.signature[48]);
         _rdrand64_step((unsigned long long *)&packet.signature[56]);
 
-        // cout << "TEST PACKET ON NODE" << endl;
         // {
+        //     cout << "TEST PACKET ON NODE" << endl;
         //     RequestResponseHeader *testPacket = (RequestResponseHeader *)&packet;
         //     BroadcastMessage *request = testPacket->getPayload<BroadcastMessage>();
         //     unsigned char backendSharedKeyAndGammingNonce[64];
@@ -326,7 +326,7 @@ struct Socket
         int retry = 0;
         while (!sendData((uint8_t *)&packet, packet.header.size()))
         {
-            cout << "Failed to send solution to node\n";
+            cout << "addon: failed to send solution to node\n";
             this_thread::sleep_for(std::chrono::milliseconds(500));
             if (retry++ >= 3)
             {

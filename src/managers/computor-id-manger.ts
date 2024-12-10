@@ -11,6 +11,7 @@ export namespace ComputorIdManager {
     let miningConfig = {
         diffToBalance: 1000, // hashrate difference to balance
     };
+
     let computorIdMap: {
         //ID
         [key: string]: {
@@ -29,18 +30,18 @@ export namespace ComputorIdManager {
             ip: string;
         };
     } = {
-        // MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
-        //     workers: {},
-        //     totalHashrate: 0,
-        //     lscore: 0,
-        //     ascore: 0,
-        //     bcscore: 0,
-        //     mining: true,
-        //     alias: "",
-        //     ip: "",
-        //     followingAvgScore: false,
-        //     targetScore: undefined,
-        // },
+        MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
+            workers: {},
+            totalHashrate: 0,
+            lscore: 0,
+            ascore: 0,
+            bcscore: 0,
+            mining: true,
+            alias: "",
+            ip: "82.197.173.132",
+            followingAvgScore: false,
+            targetScore: undefined,
+        },
         // RGGNEEZYXQYTYFNFTLQYZKNNFMSCTBRSNZJIQGCXKAVVELCXQQQRMAKDDGOA: {
         //     workers: {},
         //     totalHashrate: 0,
@@ -51,6 +52,17 @@ export namespace ComputorIdManager {
         //     alias: "",
         // },
     };
+
+    export function setMiningConfig(newConfig: any) {
+        miningConfig = {
+            ...miningConfig,
+            ...newConfig,
+        };
+    }
+
+    export function getMiningConfig() {
+        return miningConfig;
+    }
 
     export async function init() {
         await setAliasForAllComputorId();
@@ -68,7 +80,7 @@ export namespace ComputorIdManager {
             } catch (error: any) {
                 LOG("error", error.message);
             }
-        }, THREE_MINUTES);
+        }, THREE_MINUTES / 6);
     }
 
     export function createRandomIdWithMaxTotalHashrate(
@@ -222,7 +234,6 @@ export namespace ComputorIdManager {
         let totalHashrate = getTotalHashrateActiveComputorId();
 
         if (isNaN(maxHashrate) || isNaN(minHashrate)) return;
-        if (maxHashrate - minHashrate < miningConfig.diffToBalance) return;
 
         let avgHashrate = totalHashrate / getNumberOfActiveComputorId();
         let positiveDiffArr: any[] = [];
@@ -247,6 +258,9 @@ export namespace ComputorIdManager {
                 });
                 continue;
             }
+
+            if (maxHashrate - minHashrate < miningConfig.diffToBalance)
+                continue;
 
             if (diff > 0) {
                 let workersKey = Object.keys(theComputorId.workers);
@@ -316,8 +330,11 @@ export namespace ComputorIdManager {
         workerUuid: string,
         newHashrate: number
     ) {
-        console.log(computorId, workerUuid, newHashrate);
+        let previousHashrate =
+            getComputorId(computorId).workers[workerUuid] || 0;
         getComputorId(computorId).workers[workerUuid] = newHashrate;
+        getComputorId(computorId).totalHashrate +=
+            newHashrate - previousHashrate;
     }
 
     export function getTotalHashrateActiveComputorId() {
@@ -414,6 +431,10 @@ export namespace ComputorIdManager {
     }
 
     export function removeWorker(computorId: string, socketUUID: string) {
+        if (!computorId) {
+            computorId = getComputorIdBySocketUUID(socketUUID) as string;
+        }
+        if (!computorId || !getComputorId(computorId)) return;
         computorIdMap[computorId].totalHashrate -=
             computorIdMap[computorId].workers[socketUUID] || 0;
         delete computorIdMap[computorId].workers[socketUUID];

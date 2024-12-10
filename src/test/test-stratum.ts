@@ -21,6 +21,25 @@ setTimeout(() => {
         }) + "\n"
     );
 }, 5000);
+
+let buffer = "";
 socket.on("data", (data) => {
-    console.log(data.toString());
+    buffer += data.toString();
+
+    while (buffer.includes(StratumEvents.DELIMITER)) {
+        let packet = buffer.slice(0, buffer.indexOf(StratumEvents.DELIMITER));
+        buffer = buffer.slice(buffer.indexOf(StratumEvents.DELIMITER) + 1);
+        let jsonObj = JSON.parse(packet);
+        console.log(jsonObj);
+        if (jsonObj.id === StratumEvents.eventsId.NEW_COMPUTOR_ID) {
+            socket.write(
+                JSON.stringify({
+                    id: StratumEvents.eventsId.SUBMIT_RESULT,
+                    nonce: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc",
+                    seed: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1",
+                    computorId: jsonObj.computorId,
+                }) + "\n"
+            );
+        }
+    }
 });

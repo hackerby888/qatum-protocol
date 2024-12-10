@@ -14,6 +14,26 @@ namespace HttpServer {
             res.send("Hello World!");
         });
 
+        app.get("/mining-config", (req, res) => {
+            try {
+                res.send(ComputorIdManager.getMiningConfig());
+            } catch (e: any) {
+                res.status(500).send(e.message);
+            }
+        });
+
+        app.put("/mining-config", (req, res) => {
+            try {
+                let miningConfig: {
+                    diffToBalance: number;
+                } = req.body as any;
+                ComputorIdManager.setMiningConfig(miningConfig);
+                res.status(200).send();
+            } catch (e: any) {
+                res.status(500).send(e.message);
+            }
+        });
+
         app.get("/computor-ids", (req, res) => {
             try {
                 res.send(ComputorIdManager.getComputorIds());

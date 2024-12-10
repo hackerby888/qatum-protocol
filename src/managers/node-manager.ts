@@ -23,19 +23,24 @@ namespace NodeManager {
     let currentSeed = "";
     let nodeIp = "";
     export async function initToNodeSocket(ip: string) {
-        nodeIp = ip;
-        await new Promise((resolve, reject) => {
-            addon.initSocket(ip, (isOk: boolean) => {
-                if (isOk) {
-                    resolve(undefined);
-                } else {
-                    reject(undefined);
-                    process.exit(1);
-                }
+        try {
+            nodeIp = ip;
+            await new Promise((resolve, reject) => {
+                addon.initSocket(ip, (isOk: boolean) => {
+                    if (isOk) {
+                        resolve(undefined);
+                    } else {
+                        reject(undefined);
+                        process.exit(1);
+                    }
+                });
             });
-        });
-        await syncMiningSeed();
-        watchMiningSeed();
+
+            await syncMiningSeed();
+            watchMiningSeed();
+        } catch (e: any) {
+            LOG("error", e.message);
+        }
     }
 
     export async function sendSolution(
@@ -71,6 +76,9 @@ namespace NodeManager {
     export async function syncMiningSeed() {
         return new Promise((resolve, reject) => {
             addon.getMiningCurrentMiningSeed((newSeed: string) => {
+                if (newSeed === "-1") {
+                    return reject(new Error("failed to get new seed"));
+                }
                 currentSeed = newSeed;
                 resolve(undefined);
             });
@@ -79,20 +87,17 @@ namespace NodeManager {
 
     export function watchMiningSeed() {
         setInterval(async () => {
-            let oldSeed = currentSeed;
-            await syncMiningSeed();
-            if (oldSeed === "-1") {
-                //no connection to node
-                addon.initSocket(nodeIp, () => {
-                    LOG("node", "reconnected to node");
-                });
-                return;
-            }
-            if (oldSeed !== currentSeed) {
-                SocketManager.broadcast(
-                    StratumEvents.getNewSeedPacket(currentSeed)
-                );
-                LOG("node", "new seed: " + currentSeed);
+            try {
+                let oldSeed = currentSeed;
+                await syncMiningSeed();
+                if (oldSeed !== currentSeed) {
+                    SocketManager.broadcast(
+                        StratumEvents.getNewSeedPacket(currentSeed)
+                    );
+                    LOG("node", "new seed: " + currentSeed);
+                }
+            } catch (e: any) {
+                LOG("error", e.message);
             }
         }, FIVE_SECONDS * 2);
     }
