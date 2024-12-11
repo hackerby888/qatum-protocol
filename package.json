@@ -24,6 +24,7 @@
     "devDependencies": {
         "@types/bindings": "^1.5.5",
         "@types/cors": "^2.8.17",
-        "@types/express": "^5.0.0"
+        "@types/express": "^5.0.0",
+        "typescript": "^5.7.2"
     }
 }
