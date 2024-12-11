@@ -17,6 +17,7 @@ Qatum is the stratum-like protocol for qubic.
 ## Environment Variable
 
 ```ts
+# create .env file on project's root folder and paste following variables
 QLI_USERNAME=""
 QLI_PASSWORD=""
 HTTP_PORT=30000
