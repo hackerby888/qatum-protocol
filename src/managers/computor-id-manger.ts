@@ -1,3 +1,4 @@
+import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
 import StratumEvents from "../stratum/stratum-events";
 import LOG from "../utils/logger";
@@ -6,7 +7,7 @@ import fetchScore from "../utils/qli-apis/fetch-score";
 import ApiData from "../utils/qli-apis/global-data";
 import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
-
+import fs from "fs";
 export namespace ComputorIdManager {
     let miningConfig = {
         diffToBalance: 1000, // hashrate difference to balance
@@ -53,6 +54,35 @@ export namespace ComputorIdManager {
         // },
     };
 
+    export function deleteAllWorkersForAllComputorId() {
+        for (let computorId in computorIdMap) {
+            computorIdMap[computorId].workers = {};
+            computorIdMap[computorId].totalHashrate = 0;
+        }
+    }
+
+    export function saveToDisk() {
+        deleteAllWorkersForAllComputorId();
+        fs.writeFileSync(
+            `${DATA_PATH}/computorIdMap.json`,
+            JSON.stringify(computorIdMap)
+        );
+    }
+
+    export function loadFromDisk() {
+        try {
+            computorIdMap = JSON.parse(
+                fs.readFileSync(`${DATA_PATH}/computorIdMap.json`).toString()
+            );
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("error", "computorIdMap.json not found");
+            } else {
+                LOG("error", error.message);
+            }
+        }
+    }
+
     export function setMiningConfig(newConfig: any) {
         miningConfig = {
             ...miningConfig,
@@ -65,6 +95,7 @@ export namespace ComputorIdManager {
     }
 
     export async function init() {
+        loadFromDisk();
         await setAliasForAllComputorId();
         await setScoreForAllComputorId();
         await syncAvgScore();
@@ -418,6 +449,14 @@ export namespace ComputorIdManager {
     }
 
     export function removeComputorId(computorId: string) {
+        let workers = Object.keys(computorIdMap[computorId].workers);
+        while (workers.length > 0) {
+            moveWorkerToComputorId(
+                getLowestHashrateActiveComputorId() as string,
+                workers.pop() as string
+            );
+        }
+
         delete computorIdMap[computorId];
     }
 

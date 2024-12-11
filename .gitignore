@@ -2,3 +2,4 @@ node_modules/
 ts-build/
 build/
 .env
+data/

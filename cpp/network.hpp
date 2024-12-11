@@ -10,6 +10,7 @@
 #include "k12.hpp"
 #include "helper.hpp"
 #include <thread>
+#include "logger.hpp"
 
 #define ZERO _mm256_setzero_si256()
 #define MESSAGE_TYPE_SOLUTION 0
@@ -181,13 +182,13 @@ struct Socket
 
         if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
         {
-            printf("addon: error translating command line ip address to usable one.");
+            log("error", "addon: error translating command line ip address to usable one");
             return -1;
         }
 
         if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
-            printf("addon: failed to connect %s\n", nodeIp);
+            log("error", "addon: failed to connect " + string(nodeIp));
             return -1;
         }
 

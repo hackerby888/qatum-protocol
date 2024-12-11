@@ -81,6 +81,21 @@ namespace HttpServer {
             }
         });
 
+        app.delete("/computor-id", (req, res) => {
+            try {
+                let computorId = req.body.computorId as string;
+                if (!computorId) {
+                    res.status(400).send("computorId is required");
+                    return;
+                }
+                ComputorIdManager.removeComputorId(computorId);
+                ComputorIdManager.syncNewComputorIdForSockets();
+                res.status(200).send("");
+            } catch (e: any) {
+                res.status(500).send(e.message);
+            }
+        });
+
         app.listen(httpPort, () => {
             LOG("http", `http server listening on port ${httpPort}`);
         });

@@ -5,6 +5,7 @@
 #include "network.hpp"
 #include "helper.hpp"
 #include "k12.hpp"
+#include "logger.hpp"
 
 using namespace std;
 using namespace Napi;
@@ -140,6 +141,9 @@ private:
 Napi::Value
 initSocket(const Napi::CallbackInfo &info)
 {
+    log("error", "lol");
+    log("error", "lol");
+    log("error", "lol");
     Napi::Env env = info.Env();
     string ip = info[0].As<Napi::String>();
     globalIp = ip;
@@ -174,6 +178,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
     exports.Set(Napi::String::New(env, "sendSol"),
                 Napi::Function::New(env, sendSol));
+
+    exports.Set(Napi::String::New(env, "initLogger"),
+                Napi::Function::New(env, initLogger));
 
     return exports;
 }

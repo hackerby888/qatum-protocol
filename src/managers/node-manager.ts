@@ -4,8 +4,10 @@ import { SocketManager } from "./socket-manager";
 import StratumEvents from "../stratum/stratum-events";
 import { FIVE_SECONDS } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
+import Platform from "../platform/exit";
 
 interface Addon {
+    initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
     getMiningCurrentMiningSeed: (cb: (seed: string) => void) => void;
     sendSol: (
@@ -22,6 +24,13 @@ namespace NodeManager {
     export let internalAddon = addon;
     let currentSeed = "";
     let nodeIp = "";
+
+    export function initLogger() {
+        addon.initLogger((type: string, msg: string) => {
+            // @ts-ignore
+            LOG(type, msg);
+        });
+    }
     export async function initToNodeSocket(ip: string) {
         try {
             nodeIp = ip;
@@ -31,7 +40,7 @@ namespace NodeManager {
                         resolve(undefined);
                     } else {
                         reject(undefined);
-                        process.exit(1);
+                        Platform.exit(1);
                     }
                 });
             });
@@ -43,6 +52,11 @@ namespace NodeManager {
         }
     }
 
+    export async function init(ip: string) {
+        initLogger();
+        await initToNodeSocket(ip);
+    }
+
     export async function sendSolution(
         nonceHex: string,
         seedHex: string,
@@ -51,7 +65,7 @@ namespace NodeManager {
         return new Promise((resolve, reject) => {
             let ip = ComputorIdManager.getComputorId(computorId).ip;
             if (!ip) {
-                reject(false);
+                reject(new Error("ip not found"));
             }
             addon.sendSol(
                 ip,
@@ -86,8 +100,12 @@ namespace NodeManager {
     }
 
     export function watchMiningSeed() {
+        let isProcessing = false;
         setInterval(async () => {
             try {
+                if (isProcessing) return;
+
+                isProcessing = true;
                 let oldSeed = currentSeed;
                 await syncMiningSeed();
                 if (oldSeed !== currentSeed) {
@@ -96,6 +114,7 @@ namespace NodeManager {
                     );
                     LOG("node", "new seed: " + currentSeed);
                 }
+                isProcessing = false;
             } catch (e: any) {
                 LOG("error", e.message);
             }
