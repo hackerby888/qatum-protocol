@@ -4,7 +4,7 @@ Qatum is the stratum-like protocol for qubic.
 
 * Nodejs.
 * G++
-* Python3
+* Python >= 3.12
 * AVX2 or higher instruction server.
 * Atleast 2 cores server
 
@@ -12,7 +12,7 @@ Qatum is the stratum-like protocol for qubic.
 * npm i
 * npm run configure
 * npm run build
-* node ts-build/index.js
+* npm start
 
 ## Environment Variable
 
