@@ -31,18 +31,18 @@ export namespace ComputorIdManager {
             ip: string;
         };
     } = {
-        MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
-            workers: {},
-            totalHashrate: 0,
-            lscore: 0,
-            ascore: 0,
-            bcscore: 0,
-            mining: true,
-            alias: "",
-            ip: "82.197.173.132",
-            followingAvgScore: false,
-            targetScore: undefined,
-        },
+        // MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
+        //     workers: {},
+        //     totalHashrate: 0,
+        //     lscore: 0,
+        //     ascore: 0,
+        //     bcscore: 0,
+        //     mining: true,
+        //     alias: "",
+        //     ip: "82.197.173.132",
+        //     followingAvgScore: false,
+        //     targetScore: undefined,
+        // },
         // RGGNEEZYXQYTYFNFTLQYZKNNFMSCTBRSNZJIQGCXKAVVELCXQQQRMAKDDGOA: {
         //     workers: {},
         //     totalHashrate: 0,
@@ -111,7 +111,7 @@ export namespace ComputorIdManager {
             } catch (error: any) {
                 LOG("error", error.message);
             }
-        }, THREE_MINUTES / 6);
+        }, THREE_MINUTES);
     }
 
     export function createRandomIdWithMaxTotalHashrate(
