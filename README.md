@@ -14,6 +14,16 @@ Qatum is the stratum-like protocol for qubic.
 * npm run build
 * node ts-build/index.js
 
+## Environment Variable
+
+```ts
+QLI_USERNAME=""
+QLI_PASSWORD=""
+HTTP_PORT=30000
+STRATUM_PORT=30001
+NODE_IP = "1.1.1.1"
+```
+
 ## Documentation
 ![alt text](https://i.ibb.co/Jq70KKq/qatum.png)
 
