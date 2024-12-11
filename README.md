@@ -15,13 +15,10 @@ Qatum is the stratum-like protocol for qubic.
 * node ts-build/index.js
 
 ## Documentation
-
-Flow char
-
-image here
+![alt text](https://i.ibb.co/Jq70KKq/qatum.png)
 
 * **Qatum Events Id**
-```
+```ts
 {
         SUBSCRIBE: 1,
         NEW_COMPUTOR_ID: 2,
@@ -32,7 +29,7 @@ image here
 ```
 
 * **Client Packet**
-```
+```ts
 export namespace Client {
         export interface SubscribePacket {
             id: number;
@@ -55,7 +52,7 @@ export namespace Client {
     }
 ```
 * **Server Packet**
-```
+```ts
 export namespace Server {
         export interface SubscribePacket {
             id: number;
