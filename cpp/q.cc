@@ -141,9 +141,6 @@ private:
 Napi::Value
 initSocket(const Napi::CallbackInfo &info)
 {
-    log("error", "lol");
-    log("error", "lol");
-    log("error", "lol");
     Napi::Env env = info.Env();
     string ip = info[0].As<Napi::String>();
     globalIp = ip;
