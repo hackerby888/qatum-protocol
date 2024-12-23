@@ -10,7 +10,7 @@
       ],
       'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
       "cflags": [
-          "-march=native",
+          "-mrdrnd -mbmi -w",
       ]
     }
   ]

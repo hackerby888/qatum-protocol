@@ -9,12 +9,13 @@ import Platform from "../platform/exit";
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
-    getMiningCurrentMiningSeed: (cb: (seed: string) => void) => void;
+    getMiningCurrentMiningSeed: (cb: (miningSeed: string) => void) => void;
     sendSol: (
         ip: string,
         nonce: string,
-        seed: string,
+        miningSeed: string,
         id: string,
+        secretSeed: string,
         cb: (isOK: boolean) => void
     ) => boolean;
 }
@@ -22,7 +23,10 @@ let addon: Addon = bindings("q");
 
 namespace NodeManager {
     export let internalAddon = addon;
-    let currentSeed = "";
+    // this seed is used to mine
+    let currentMiningSeed = "";
+    //this seed is used to submit solution
+    let currentSecretSeed = "";
     let nodeIp = "";
 
     export function initLogger() {
@@ -52,7 +56,8 @@ namespace NodeManager {
         }
     }
 
-    export async function init(ip: string) {
+    export async function init(ip: string, secretSeed: string) {
+        currentSecretSeed = secretSeed;
         initLogger();
         await initToNodeSocket(ip);
     }
@@ -65,13 +70,14 @@ namespace NodeManager {
         return new Promise((resolve, reject) => {
             let ip = ComputorIdManager.getComputorId(computorId).ip;
             if (!ip) {
-                reject(new Error("ip not found"));
+                //   return reject(new Error("ip not found"));
             }
             addon.sendSol(
                 ip,
                 nonceHex,
                 seedHex,
                 computorId,
+                currentSecretSeed,
                 (isOK: boolean) => {
                     if (isOK) {
                         resolve(isOK);
@@ -84,7 +90,7 @@ namespace NodeManager {
     }
 
     export function getMiningSeed() {
-        return currentSeed;
+        return currentMiningSeed;
     }
 
     export async function syncMiningSeed() {
@@ -93,7 +99,7 @@ namespace NodeManager {
                 if (newSeed === "-1") {
                     return reject(new Error("failed to get new seed"));
                 }
-                currentSeed = newSeed;
+                currentMiningSeed = newSeed;
                 resolve(undefined);
             });
         });
@@ -106,13 +112,13 @@ namespace NodeManager {
                 if (isProcessing) return;
 
                 isProcessing = true;
-                let oldSeed = currentSeed;
+                let oldSeed = currentMiningSeed;
                 await syncMiningSeed();
-                if (oldSeed !== currentSeed) {
+                if (oldSeed !== currentMiningSeed) {
                     SocketManager.broadcast(
-                        StratumEvents.getNewSeedPacket(currentSeed)
+                        StratumEvents.getNewSeedPacket(currentMiningSeed)
                     );
-                    LOG("node", "new seed: " + currentSeed);
+                    LOG("node", "new seed: " + currentMiningSeed);
                 }
                 isProcessing = false;
             } catch (e: any) {

@@ -35,8 +35,8 @@ socket.on("data", (data) => {
             socket.write(
                 JSON.stringify({
                     id: StratumEvents.eventsId.SUBMIT_RESULT,
-                    nonce: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc",
-                    seed: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1",
+                    nonce: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa",
+                    seed: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc",
                     computorId: jsonObj.computorId,
                 }) + "\n"
             );

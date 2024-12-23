@@ -18,7 +18,10 @@ function createDataPath() {
 async function main() {
     createDataPath();
     await ComputorIdManager.init();
-    await NodeManager.init(process.env.NODE_IP as string);
+    await NodeManager.init(
+        process.env.NODE_IP as string,
+        process.env.SECRET_SEED as string
+    );
     await StratumServer.createServer(Number(process.env.STRATUM_PORT));
     await HttpServer.createServer(Number(process.env.HTTP_PORT));
 }

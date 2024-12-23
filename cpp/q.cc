@@ -4,8 +4,9 @@
 #include <stdint.h>
 #include "network.hpp"
 #include "helper.hpp"
-#include "k12.hpp"
+#include "keyUtils.hpp"
 #include "logger.hpp"
+#include "logger2.hpp"
 
 using namespace std;
 using namespace Napi;
@@ -99,13 +100,14 @@ private:
 class SubmitSolutionWorker : public AsyncWorker
 {
 public:
-    SubmitSolutionWorker(Function &callback, string ip, string nonceHex, string seedHex, string computorId)
+    SubmitSolutionWorker(Function &callback, string ip, string nonceHex, string seedHex, string computorId, string secretSeed)
         : AsyncWorker(callback)
     {
         this->nonceHex = nonceHex;
         this->seedHex = seedHex;
         this->computorId = computorId;
         this->ip = ip;
+        this->secretSeed = secretSeed;
     }
 
     ~SubmitSolutionWorker() {}
@@ -115,13 +117,12 @@ public:
         unsigned char nonce[32];
         unsigned char seed[32];
         __m256i computorPublicKey;
-
         hexToByte(nonceHex.c_str(), nonce, 32);
         hexToByte(seedHex.c_str(), seed, 32);
         getPublicKeyFromIdentity((const unsigned char *)computorId.c_str(), (unsigned char *)&computorPublicKey);
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
-        isOk = sendSocket.sendSolution(computorPublicKey, nonce, seed) && isOk;
+        isOk = sendSocket.sendSolution(computorPublicKey, nonce, seed, secretSeed.c_str()) && isOk;
     }
 
     void OnOK() override
@@ -136,11 +137,13 @@ private:
     string nonceHex;
     string computorId;
     string ip;
+    string secretSeed;
 };
 
 Napi::Value
 initSocket(const Napi::CallbackInfo &info)
 {
+
     Napi::Env env = info.Env();
     string ip = info[0].As<Napi::String>();
     globalIp = ip;
@@ -159,8 +162,8 @@ Value getMiningCurrentMiningSeed(const Napi::CallbackInfo &info)
 }
 Napi::Value sendSol(const Napi::CallbackInfo &info)
 {
-    Function cb = info[4].As<Function>();
-    SubmitSolutionWorker *wk = new SubmitSolutionWorker(cb, info[0].As<Napi::String>(), info[1].As<Napi::String>(), info[2].As<Napi::String>(), info[3].As<Napi::String>());
+    Function cb = info[5].As<Function>();
+    SubmitSolutionWorker *wk = new SubmitSolutionWorker(cb, info[0].As<Napi::String>(), info[1].As<Napi::String>(), info[2].As<Napi::String>(), info[3].As<Napi::String>(), info[4].As<Napi::String>());
     wk->Queue();
     return info.Env().Undefined();
 }
