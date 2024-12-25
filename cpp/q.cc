@@ -6,7 +6,6 @@
 #include "helper.hpp"
 #include "keyUtils.hpp"
 #include "logger.hpp"
-#include "logger2.hpp"
 
 using namespace std;
 using namespace Napi;
