@@ -57,6 +57,7 @@ namespace NodeManager {
     }
 
     export async function init(ip: string, secretSeed: string) {
+        LOG("node", "init node manager");
         currentSecretSeed = secretSeed;
         initLogger();
         await initToNodeSocket(ip);

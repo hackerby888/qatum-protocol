@@ -1,6 +1,7 @@
 import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
 import StratumEvents from "../stratum/stratum-events";
+import { Transaction } from "../types/type";
 import LOG from "../utils/logger";
 import fetchListIds from "../utils/qli-apis/fetch-list-ids";
 import fetchScore from "../utils/qli-apis/fetch-score";
@@ -29,6 +30,7 @@ export namespace ComputorIdManager {
             targetScore: number | undefined;
             alias: string;
             ip: string;
+            lastUpdateScoreTime?: number;
         };
     } = {
         // MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
@@ -42,15 +44,6 @@ export namespace ComputorIdManager {
         //     ip: "82.197.173.132",
         //     followingAvgScore: false,
         //     targetScore: undefined,
-        // },
-        // RGGNEEZYXQYTYFNFTLQYZKNNFMSCTBRSNZJIQGCXKAVVELCXQQQRMAKDDGOA: {
-        //     workers: {},
-        //     totalHashrate: 0,
-        //     lscore: 0,
-        //     ascore: 0,
-        //     bcscore: 0,
-        //     mining: false,
-        //     alias: "",
         // },
     };
 
@@ -95,6 +88,7 @@ export namespace ComputorIdManager {
     }
 
     export async function init() {
+        LOG("sys", "init computor id manager");
         loadFromDisk();
         await setAliasForAllComputorId();
         await setScoreForAllComputorId();
@@ -393,27 +387,72 @@ export namespace ComputorIdManager {
         }
     }
 
-    export async function setScoreForAllComputorId() {
-        let data: {
-            alias: string;
-            localScore: number;
-            adminScore: number;
-            bcScore: number;
-        }[] = await fetchScore();
+    export async function fetchScoreV2() {
+        let emptyTicks: number[];
+        let ticksData: {
+            tickInfo: {
+                tick: number;
+                duration: number;
+                epoch: number;
+                initialTick: number;
+            };
+        };
 
-        if (!data) return;
-
-        for (let computorId in computorIdMap) {
-            let score = data.find(
-                (item) => item.alias === getComputorId(computorId).alias
+        try {
+            ticksData = await fetch(`https://rpc.qubic.org/v1/tick-info`).then(
+                (data) => data.json()
             );
 
-            if (score) {
-                getComputorId(computorId).lscore = score.localScore;
-                getComputorId(computorId).ascore = score.adminScore;
-                getComputorId(computorId).bcscore = score.bcScore;
+            emptyTicks = await fetch(
+                `https://rpc.qubic.org/v2/epochs/${141}/empty-ticks?pageSize=100000`
+            )
+                .then((data) => data.json())
+                .then((data) => data.emptyTicks);
+        } catch (error: any) {
+            LOG("error", error.message);
+            return;
+        }
+
+        for (let computorId in computorIdMap) {
+            try {
+                let data = await fetch(
+                    `https://rpc.qubic.org/v2/identities/${computorId}/transfers?startTick=${ticksData.tickInfo.initialTick}&endTick=${ticksData.tickInfo.tick}`
+                );
+
+                let transactions = (await data.json()).transactions as {
+                    transactions: {
+                        moneyFlew: boolean;
+                        transaction: Transaction;
+                    }[];
+                }[];
+
+                let scores = 0;
+                for (let fatherTx of transactions) {
+                    for (let tx of fatherTx.transactions) {
+                        if (
+                            tx.transaction.inputType === 2 &&
+                            tx.transaction.sourceId === computorId &&
+                            !emptyTicks.includes(tx.transaction.tickNumber) &&
+                            tx.moneyFlew
+                        ) {
+                            scores++;
+                        }
+                    }
+                }
+
+                //currently we are using lscore, ascore, bcscore as the same score
+                computorIdMap[computorId].lscore = scores;
+                computorIdMap[computorId].ascore = scores;
+                computorIdMap[computorId].bcscore = scores;
+                computorIdMap[computorId].lastUpdateScoreTime = Date.now();
+            } catch (error: any) {
+                LOG("error", error.message);
             }
         }
+    }
+
+    export async function setScoreForAllComputorId() {
+        await fetchScoreV2();
     }
 
     export function addComputorId(computorId: string, newSettings: any = {}) {
