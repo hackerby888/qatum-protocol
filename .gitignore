@@ -3,3 +3,4 @@ ts-build/
 build/
 .env
 data/
+src/test/rpc.ts

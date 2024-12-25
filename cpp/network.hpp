@@ -263,7 +263,7 @@ struct Socket
 
         packet.header.checkAndSetSize(sizeof(packet));
         packet.header.setDejavu(0);
-        packet.header.setType(MESSAGE_TYPE_SOLUTION);
+        packet.header.setType(BroadcastMessage::type);
 
         uint8_t signingPublicKey[32] = {0};
         uint8_t privateKey[32] = {0};
