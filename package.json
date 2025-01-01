@@ -18,6 +18,7 @@
         "cors": "^2.8.5",
         "dotenv": "^16.4.7",
         "express": "^4.21.2",
+        "hash-wasm": "^4.12.0",
         "node-addon-api": "^8.3.0"
     },
     "gypfile": true,

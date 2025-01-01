@@ -29,5 +29,6 @@ async function main() {
 main();
 
 process.on("SIGINT", () => {
+    NodeManager.stopVerifyThread();
     Platform.exit(0);
 });

@@ -57,6 +57,11 @@ namespace StratumServer {
                         let jsonObjTyped2 =
                             jsonObj as StratumInterface.Client.SubmitPacket;
                         try {
+                            ComputorIdManager.writeSolution(
+                                jsonObjTyped2.computorId,
+                                jsonObjTyped2.nonce,
+                                jsonObjTyped2.seed
+                            );
                             let result = await NodeManager.sendSolution(
                                 jsonObjTyped2.nonce,
                                 jsonObjTyped2.seed,

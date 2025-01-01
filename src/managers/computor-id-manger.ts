@@ -1,7 +1,8 @@
 import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
+import Platform from "../platform/exit";
 import StratumEvents from "../stratum/stratum-events";
-import { Transaction } from "../types/type";
+import { SolutionData, Transaction } from "../types/type";
 import LOG from "../utils/logger";
 import fetchListIds from "../utils/qli-apis/fetch-list-ids";
 import fetchScore from "../utils/qli-apis/fetch-score";
@@ -13,6 +14,19 @@ export namespace ComputorIdManager {
     let miningConfig = {
         diffToBalance: 1000, // hashrate difference to balance
     };
+
+    let currentEpoch: number = 0;
+
+    let ticksData: {
+        tickInfo: {
+            tick: number;
+            duration: number;
+            epoch: number;
+            initialTick: number;
+        };
+    };
+
+    let emptyTicks: number[];
 
     let computorIdMap: {
         //ID
@@ -30,22 +44,44 @@ export namespace ComputorIdManager {
             targetScore: number | undefined;
             alias: string;
             ip: string;
-            lastUpdateScoreTime?: number;
+            lastUpdateScoreTime: number;
+            // we use map for faster access
+            submittedSolutions: {
+                [key: string]: {
+                    isWrittenToBC: boolean;
+                    submittedTime: number;
+                };
+            };
+            solutionsFetched: SolutionData[];
         };
     } = {
-        // MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
-        //     workers: {},
-        //     totalHashrate: 0,
-        //     lscore: 0,
-        //     ascore: 0,
-        //     bcscore: 0,
-        //     mining: true,
-        //     alias: "",
-        //     ip: "82.197.173.132",
-        //     followingAvgScore: false,
-        //     targetScore: undefined,
-        // },
+        MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
+            workers: {},
+            totalHashrate: 0,
+            lscore: 0,
+            ascore: 0,
+            bcscore: 0,
+            mining: true,
+            alias: "",
+            ip: "82.197.173.132",
+            followingAvgScore: false,
+            targetScore: undefined,
+            lastUpdateScoreTime: 0,
+            solutionsFetched: [],
+            submittedSolutions: {},
+        },
     };
+
+    export async function writeSolution(
+        computorId: string,
+        nonce: string,
+        miningSeed: string
+    ) {
+        computorIdMap[computorId].submittedSolutions[miningSeed + nonce] = {
+            isWrittenToBC: false,
+            submittedTime: Date.now(),
+        };
+    }
 
     export function deleteAllWorkersForAllComputorId() {
         for (let computorId in computorIdMap) {
@@ -54,22 +90,40 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function saveToDisk() {
+    export function saveToDisk(epoch?: number) {
+        if (!epoch && !ticksData.tickInfo.epoch) {
+            return;
+        }
         deleteAllWorkersForAllComputorId();
         fs.writeFileSync(
-            `${DATA_PATH}/computorIdMap.json`,
+            `${DATA_PATH}/computorIdMapE${
+                epoch || ticksData.tickInfo.epoch
+            }.json`,
             JSON.stringify(computorIdMap)
         );
     }
 
-    export function loadFromDisk() {
+    export function loadFromDisk(epoch?: number) {
+        let candicateEpoch = epoch || ticksData?.tickInfo?.epoch;
         try {
+            if (!candicateEpoch) {
+                LOG("error", "epoch not found");
+                Platform.exit(1);
+            }
+
             computorIdMap = JSON.parse(
-                fs.readFileSync(`${DATA_PATH}/computorIdMap.json`).toString()
+                fs
+                    .readFileSync(
+                        `${DATA_PATH}/computorIdMapE${candicateEpoch}.json`
+                    )
+                    .toString()
             );
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("error", "computorIdMap.json not found");
+                LOG(
+                    "sys",
+                    `computorIdMapE${candicateEpoch}.json not found, creating new one`
+                );
             } else {
                 LOG("error", error.message);
             }
@@ -89,6 +143,12 @@ export namespace ComputorIdManager {
 
     export async function init() {
         LOG("sys", "init computor id manager");
+        try {
+            await syncTicksData();
+        } catch (error: any) {
+            LOG("error", "failed to connect to qubic rpc server");
+            Platform.exit(1);
+        }
         loadFromDisk();
         await setAliasForAllComputorId();
         await setScoreForAllComputorId();
@@ -387,31 +447,48 @@ export namespace ComputorIdManager {
         }
     }
 
+    export async function resetComputorData() {
+        for (let computorId in computorIdMap) {
+            computorIdMap[computorId].lscore = 0;
+            computorIdMap[computorId].ascore = 0;
+            computorIdMap[computorId].bcscore = 0;
+            computorIdMap[computorId].lastUpdateScoreTime = 0;
+            computorIdMap[computorId].solutionsFetched = [];
+            computorIdMap[computorId].submittedSolutions = {};
+        }
+    }
+
+    async function syncTicksData() {
+        ticksData = await fetch(`https://rpc.qubic.org/v1/tick-info`).then(
+            (data) => data.json()
+        );
+    }
+
+    async function syncEmptyTicks() {
+        emptyTicks = await fetch(
+            `https://rpc.qubic.org/v2/epochs/${ticksData.tickInfo.epoch}/empty-ticks?pageSize=100000`
+        )
+            .then((data) => data.json())
+            .then((data) => data.emptyTicks);
+    }
+
     export async function fetchScoreV2() {
-        let emptyTicks: number[];
-        let ticksData: {
-            tickInfo: {
-                tick: number;
-                duration: number;
-                epoch: number;
-                initialTick: number;
-            };
-        };
-
         try {
-            ticksData = await fetch(`https://rpc.qubic.org/v1/tick-info`).then(
-                (data) => data.json()
-            );
-
-            emptyTicks = await fetch(
-                `https://rpc.qubic.org/v2/epochs/${141}/empty-ticks?pageSize=100000`
-            )
-                .then((data) => data.json())
-                .then((data) => data.emptyTicks);
+            await syncTicksData();
+            await syncEmptyTicks();
         } catch (error: any) {
-            LOG("error", error.message);
+            LOG("error", `failed to connect to qubic rpc server`);
             return;
         }
+
+        if (currentEpoch !== ticksData.tickInfo.epoch && currentEpoch !== 0) {
+            //new epoch
+            LOG("sys", `new epoch ${ticksData.tickInfo.epoch}`);
+            await saveToDisk(currentEpoch);
+            await resetComputorData();
+        }
+
+        currentEpoch = ticksData.tickInfo.epoch;
 
         for (let computorId in computorIdMap) {
             try {
@@ -427,6 +504,7 @@ export namespace ComputorIdManager {
                 }[];
 
                 let scores = 0;
+                let solutionsFetched: SolutionData[] = [];
                 for (let fatherTx of transactions) {
                     for (let tx of fatherTx.transactions) {
                         if (
@@ -435,6 +513,26 @@ export namespace ComputorIdManager {
                             !emptyTicks.includes(tx.transaction.tickNumber) &&
                             tx.moneyFlew
                         ) {
+                            let miningSeed = tx.transaction.inputHex.slice(
+                                0,
+                                64
+                            );
+                            let nonce = tx.transaction.inputHex.slice(64);
+
+                            solutionsFetched.push({
+                                miningSeed,
+                                nonce,
+                            });
+
+                            if (
+                                computorIdMap[computorId].submittedSolutions[
+                                    miningSeed + nonce
+                                ]
+                            ) {
+                                computorIdMap[computorId].submittedSolutions[
+                                    miningSeed + nonce
+                                ].isWrittenToBC = true;
+                            }
                             scores++;
                         }
                     }
@@ -445,6 +543,7 @@ export namespace ComputorIdManager {
                 computorIdMap[computorId].ascore = scores;
                 computorIdMap[computorId].bcscore = scores;
                 computorIdMap[computorId].lastUpdateScoreTime = Date.now();
+                computorIdMap[computorId].solutionsFetched = solutionsFetched;
             } catch (error: any) {
                 LOG("error", error.message);
             }
@@ -453,6 +552,7 @@ export namespace ComputorIdManager {
 
     export async function setScoreForAllComputorId() {
         await fetchScoreV2();
+        console.log(computorIdMap);
     }
 
     export function addComputorId(computorId: string, newSettings: any = {}) {
@@ -468,6 +568,9 @@ export namespace ComputorIdManager {
             targetScore: undefined,
             alias: "",
             ip: "",
+            lastUpdateScoreTime: 0,
+            solutionsFetched: [],
+            submittedSolutions: [],
             ...newSettings,
         };
     }

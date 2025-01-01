@@ -5,7 +5,7 @@ import StratumEvents from "../stratum/stratum-events";
 import { FIVE_SECONDS } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
-
+import { md5 } from "hash-wasm";
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
@@ -18,6 +18,14 @@ interface Addon {
         secretSeed: string,
         cb: (isOK: boolean) => void
     ) => boolean;
+    stopVerifyThread: () => void;
+    initVerifyThread: (threads: number, cb: () => void) => void;
+    pushSolutionToVerifyQueue: (
+        seed: string,
+        nonce: string,
+        computorId: string,
+        md5Hash: string
+    ) => void;
 }
 let addon: Addon = bindings("q");
 
@@ -28,6 +36,20 @@ namespace NodeManager {
     //this seed is used to submit solution
     let currentSecretSeed = "";
     let nodeIp = "";
+
+    export function stopVerifyThread() {
+        LOG("node", "stopping verify thread");
+        addon.stopVerifyThread();
+    }
+
+    export async function pushSolutionToVerifyQueue(
+        seed: string,
+        nonce: string,
+        computorId: string
+    ) {
+        let md5Hash = await md5(seed + nonce + computorId);
+        addon.pushSolutionToVerifyQueue(seed, nonce, computorId, md5Hash);
+    }
 
     export function initLogger() {
         addon.initLogger((type: string, msg: string) => {
@@ -56,9 +78,31 @@ namespace NodeManager {
         }
     }
 
+    export function initVerifyThread(threads: number) {
+        LOG("node", "init verify thread with " + threads + " threads");
+        // @ts-ignore
+        addon.initVerifyThread(threads, (result: string) => {
+            console.log(result);
+        });
+
+        // setInterval(() => {
+        //     pushSolutionToVerifyQueue(
+        //         "b7e44710c68b3dc391d666529ce87176273c89482b9d372f2e86f1b87268ce71716c692b637564618d014b16b9c332e4e6abb443a451a659e289eccfca618d96".substring(
+        //             0,
+        //             64
+        //         ),
+        //         "b7e44710c68b3dc391d666529ce87176273c89482b9d372f2e86f1b87268ce71716c692b637564618d014b16b9c332e4e6abb443a451a659e289eccfca618d96".substring(
+        //             64
+        //         ),
+        //         "PRKMZXJAOZERDCGLQUVESFWAHAABWIVWCPSLYBHWWFGADFZEONJATUBAMRQC"
+        //     );
+        // }, 100);
+    }
+
     export async function init(ip: string, secretSeed: string) {
         LOG("node", "init node manager");
         currentSecretSeed = secretSeed;
+        initVerifyThread(4);
         initLogger();
         await initToNodeSocket(ip);
     }

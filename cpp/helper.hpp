@@ -29,11 +29,6 @@ static void hexToByte(const char *hex, uint8_t *byte, const int sizeInByte)
     }
 }
 
-static inline bool isZero(const __m256i &a)
-{
-    return _mm256_testz_si256(a, a) == 1;
-}
-
 static inline void zero256(__m256i &a)
 {
     a = _mm256_setzero_si256();

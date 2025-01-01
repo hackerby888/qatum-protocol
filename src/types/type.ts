@@ -20,4 +20,9 @@ interface Transaction {
     txId: string;
 }
 
-export { StratumSocket, Transaction };
+interface SolutionData {
+    nonce: string;
+    miningSeed: string;
+}
+
+export { StratumSocket, Transaction, SolutionData };
