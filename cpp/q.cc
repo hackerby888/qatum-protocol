@@ -41,6 +41,10 @@ void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGT
             m256i nonce256;
             m256i seed256;
 
+            // dont use md5Hash directly from solution
+            char md5Hash[32];
+            memcpy(md5Hash, solution.md5Hash, 32);
+
             hexToByte(solution.nonce, nonce256.m256i_u8, 32);
             hexToByte(solution.miningSeed, seed256.m256i_u8, 32);
             getPublicKeyFromIdentity((const unsigned char *)solution.computorId, (unsigned char *)&computorPublicKey);
@@ -48,8 +52,8 @@ void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGT
             unsigned int resultScore = (*score)(0, computorPublicKey, seed256, nonce256);
 
             bool isSolution = score->isValidScore(resultScore) && score->isGoodScore(resultScore, SOLUTION_THRESHOLD_DEFAULT);
-            tsfn.BlockingCall([&isSolution, &solution](Napi::Env env, Napi::Function jsCallback)
-                              {   HandleScope scope(env);   Object obj = Object::New(env); obj.Set("md5hash", solution.md5Hash); obj.Set("isSolution", isSolution);  jsCallback.Call({obj}); });
+            tsfn.BlockingCall([isSolution, md5Hash](Napi::Env env, Napi::Function jsCallback)
+                              {   HandleScope scope(env);   Object obj = Object::New(env); obj.Set("md5Hash", md5Hash); obj.Set("isSolution", isSolution);  jsCallback.Call({obj}); });
         }
 
         this_thread::sleep_for(chrono::milliseconds(100));

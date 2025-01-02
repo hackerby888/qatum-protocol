@@ -7,6 +7,7 @@ import StratumInterface from "./stratum-interface";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 import NodeManager from "../managers/node-manager";
 import { SocketManager } from "../managers/socket-manager";
+import { SolutionManager } from "../managers/solution-manager";
 
 namespace StratumServer {
     export async function createServer(port: number): Promise<void> {
@@ -21,73 +22,99 @@ namespace StratumServer {
                 let jsonObj = JSON.parse(data);
                 switch (jsonObj.id) {
                     case StratumEvents.eventsId.SUBSCRIBE:
-                        let jsonObjTyped =
-                            jsonObj as StratumInterface.Client.SubscribePacket;
+                        {
+                            let jsonObjTyped =
+                                jsonObj as StratumInterface.Client.SubscribePacket;
 
-                        stratumSocket.wallet = jsonObjTyped.wallet;
-                        stratumSocket.worker = jsonObjTyped.worker;
-                        let candicateId =
-                            ComputorIdManager.getLowestHashrateActiveComputorId();
-                        if (!candicateId) {
+                            stratumSocket.wallet = jsonObjTyped.wallet;
+                            stratumSocket.worker = jsonObjTyped.worker;
+                            let candicateId =
+                                ComputorIdManager.getLowestHashrateActiveComputorId();
+                            if (!candicateId) {
+                                stratumSocket.write(
+                                    StratumEvents.getAcceptedSubscribePacket(
+                                        false,
+                                        "No computor id available"
+                                    )
+                                );
+                                socket.destroy();
+                                return;
+                            }
                             stratumSocket.write(
                                 StratumEvents.getAcceptedSubscribePacket(
-                                    false,
-                                    "No computor id available"
+                                    true,
+                                    null
                                 )
                             );
-                            socket.destroy();
-                            return;
+                            stratumSocket.write(
+                                StratumEvents.getNewComputorIdPacket(
+                                    candicateId
+                                )
+                            );
+                            stratumSocket.write(
+                                StratumEvents.getNewSeedPacket(
+                                    NodeManager.getMiningSeed()
+                                )
+                            );
+                            stratumSocket.computorId = candicateId;
+                            stratumSocket.isConnected = true;
+                            SocketManager.addSocket(stratumSocket);
                         }
-                        stratumSocket.write(
-                            StratumEvents.getAcceptedSubscribePacket(true, null)
-                        );
-                        stratumSocket.write(
-                            StratumEvents.getNewComputorIdPacket(candicateId)
-                        );
-                        stratumSocket.write(
-                            StratumEvents.getNewSeedPacket(
-                                NodeManager.getMiningSeed()
-                            )
-                        );
-                        stratumSocket.computorId = candicateId;
-                        stratumSocket.isConnected = true;
-                        SocketManager.addSocket(stratumSocket);
                         break;
                     case StratumEvents.eventsId.SUBMIT_RESULT:
-                        let jsonObjTyped2 =
-                            jsonObj as StratumInterface.Client.SubmitPacket;
-                        try {
-                            ComputorIdManager.writeSolution(
-                                jsonObjTyped2.computorId,
-                                jsonObjTyped2.nonce,
-                                jsonObjTyped2.seed
-                            );
-                            let result = await NodeManager.sendSolution(
-                                jsonObjTyped2.nonce,
-                                jsonObjTyped2.seed,
-                                jsonObjTyped2.computorId
-                            );
-                            stratumSocket.write(
-                                StratumEvents.getSubmitResultPacket(result)
-                            );
-                        } catch (e: any) {
-                            LOG("error", e.message);
-                            stratumSocket.write(
-                                StratumEvents.getSubmitResultPacket(false)
-                            );
+                        {
+                            let jsonObjTyped =
+                                jsonObj as StratumInterface.Client.SubmitPacket;
+                            try {
+                                if (
+                                    jsonObjTyped.computorId.length !== 60 ||
+                                    jsonObjTyped.nonce.length !== 64 ||
+                                    jsonObjTyped.seed.length !== 64
+                                ) {
+                                    throw new Error(
+                                        "invalid submit packet (wrong length)"
+                                    );
+                                }
+                                let result = await SolutionManager.push(
+                                    jsonObjTyped.seed,
+                                    jsonObjTyped.nonce,
+                                    jsonObjTyped.computorId
+                                );
+
+                                if (!result) {
+                                    throw new Error("duplicate solution");
+                                }
+
+                                ComputorIdManager.writeSolution(
+                                    jsonObjTyped.computorId,
+                                    jsonObjTyped.nonce,
+                                    jsonObjTyped.seed
+                                );
+                                stratumSocket.write(
+                                    StratumEvents.getSubmitResultPacket(true)
+                                );
+                            } catch (e: any) {
+                                stratumSocket.write(
+                                    StratumEvents.getSubmitResultPacket(
+                                        false,
+                                        e.message
+                                    )
+                                );
+                            }
                         }
                         break;
                     case StratumEvents.eventsId.REPORT_HASHRATE:
-                        let jsonObjTyped3 =
-                            jsonObj as StratumInterface.Client.ReportHashratePacket;
+                        {
+                            let jsonObjTyped =
+                                jsonObj as StratumInterface.Client.ReportHashratePacket;
 
-                        ComputorIdManager.updateHashrate(
-                            jsonObjTyped3.computorId ||
-                                stratumSocket.computorId,
-                            stratumSocket.randomUUID,
-                            jsonObjTyped3.hashrate
-                        );
-
+                            ComputorIdManager.updateHashrate(
+                                jsonObjTyped.computorId ||
+                                    stratumSocket.computorId,
+                                stratumSocket.randomUUID,
+                                jsonObjTyped.hashrate
+                            );
+                        }
                         break;
                     default:
                         socket.destroy();

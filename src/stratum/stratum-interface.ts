@@ -41,6 +41,7 @@ namespace StratumInterface {
         export interface SubmitResultPacket {
             id: number;
             result: boolean;
+            error: string | null;
         }
     }
 }

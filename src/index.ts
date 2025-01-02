@@ -8,6 +8,7 @@ import { ONE_MINUTE } from "./consts/time";
 import fs from "fs";
 import { DATA_PATH, ROOT_DIR } from "./consts/path";
 import Platform from "./platform/exit";
+import { SolutionManager } from "./managers/solution-manager";
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -17,6 +18,7 @@ function createDataPath() {
 
 async function main() {
     createDataPath();
+    SolutionManager.init();
     await ComputorIdManager.init();
     await NodeManager.init(
         process.env.NODE_IP as string,
@@ -29,6 +31,5 @@ async function main() {
 main();
 
 process.on("SIGINT", () => {
-    NodeManager.stopVerifyThread();
     Platform.exit(0);
 });

@@ -32,14 +32,18 @@ socket.on("data", (data) => {
         let jsonObj = JSON.parse(packet);
         console.log(jsonObj);
         if (jsonObj.id === StratumEvents.eventsId.NEW_COMPUTOR_ID) {
-            socket.write(
-                JSON.stringify({
-                    id: StratumEvents.eventsId.SUBMIT_RESULT,
-                    nonce: "716c692b637564618d005626ab3ac572435c1718e5ad1244bb5d599135c4d78f",
-                    seed: "9e71612623790b3f7f817d783bb01d1f2dc638fe665d909786e71460982072c2",
-                    computorId: jsonObj.computorId,
-                }) + "\n"
-            );
+            for (let i = 0; i < 50; i++) {
+                socket.write(
+                    JSON.stringify({
+                        id: StratumEvents.eventsId.SUBMIT_RESULT,
+                        nonce: "716c692b637564618d005626ab3ac572435c1718e5ad1244bb5d599135c4d78f",
+                        seed: `9e71612623790b3f7f817d783bb01d1f2dc638fe665d909786e7146098207${i
+                            .toString()
+                            .padStart(3, "0")}`,
+                        computorId: jsonObj.computorId,
+                    }) + "\n"
+                );
+            }
         }
     }
 });

@@ -6,6 +6,12 @@ import { FIVE_SECONDS } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
+import { SolutionManager } from "./solution-manager";
+
+interface SolutionResult {
+    md5Hash: string;
+    isSolution: boolean;
+}
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
@@ -19,7 +25,10 @@ interface Addon {
         cb: (isOK: boolean) => void
     ) => boolean;
     stopVerifyThread: () => void;
-    initVerifyThread: (threads: number, cb: () => void) => void;
+    initVerifyThread: (
+        threads: number,
+        cb: ({ md5Hash, isSolution }: SolutionResult) => void
+    ) => void;
     pushSolutionToVerifyQueue: (
         seed: string,
         nonce: string,
@@ -45,9 +54,9 @@ namespace NodeManager {
     export async function pushSolutionToVerifyQueue(
         seed: string,
         nonce: string,
-        computorId: string
+        computorId: string,
+        md5Hash: string
     ) {
-        let md5Hash = await md5(seed + nonce + computorId);
         addon.pushSolutionToVerifyQueue(seed, nonce, computorId, md5Hash);
     }
 
@@ -80,23 +89,12 @@ namespace NodeManager {
 
     export function initVerifyThread(threads: number) {
         LOG("node", "init verify thread with " + threads + " threads");
-        // @ts-ignore
-        addon.initVerifyThread(threads, (result: string) => {
-            console.log(result);
-        });
-
-        // setInterval(() => {
-        //     pushSolutionToVerifyQueue(
-        //         "b7e44710c68b3dc391d666529ce87176273c89482b9d372f2e86f1b87268ce71716c692b637564618d014b16b9c332e4e6abb443a451a659e289eccfca618d96".substring(
-        //             0,
-        //             64
-        //         ),
-        //         "b7e44710c68b3dc391d666529ce87176273c89482b9d372f2e86f1b87268ce71716c692b637564618d014b16b9c332e4e6abb443a451a659e289eccfca618d96".substring(
-        //             64
-        //         ),
-        //         "PRKMZXJAOZERDCGLQUVESFWAHAABWIVWCPSLYBHWWFGADFZEONJATUBAMRQC"
-        //     );
-        // }, 100);
+        addon.initVerifyThread(
+            threads,
+            ({ md5Hash, isSolution }: SolutionResult) => {
+                SolutionManager.markAsVerifed(md5Hash, isSolution);
+            }
+        );
     }
 
     export async function init(ip: string, secretSeed: string) {

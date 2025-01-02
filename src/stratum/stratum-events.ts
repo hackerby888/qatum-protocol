@@ -39,10 +39,14 @@ namespace StratumEvents {
         return JSON.stringify(packet) + DELIMITER;
     }
 
-    export function getSubmitResultPacket(result: boolean): string {
+    export function getSubmitResultPacket(
+        result: boolean,
+        error?: string
+    ): string {
         let packet: StratumInterface.Server.SubmitResultPacket = {
             id: eventsId.SUBMIT_RESULT,
             result,
+            error: error || null,
         };
         return JSON.stringify(packet) + DELIMITER;
     }
