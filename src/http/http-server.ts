@@ -55,7 +55,6 @@ namespace HttpServer {
                     followingAvgScore?: boolean;
                 } = req.body.settings || {};
                 ComputorIdManager.addComputorId(computorId, settings);
-                await ComputorIdManager.setAliasForAllComputorId();
                 res.status(200).send("");
             } catch (e: any) {
                 res.status(500).send(e.message);

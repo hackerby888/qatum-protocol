@@ -19,7 +19,7 @@ Socket qsocket;
 bool isConnected = false;
 string globalIp;
 
-ThreadSafeFunction tsfn;
+Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
 SolutionQueue *solutionQueue;
 void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS> *score, unsigned long long threadId)
@@ -40,10 +40,7 @@ void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGT
             m256i computorPublicKey;
             m256i nonce256;
             m256i seed256;
-
-            // dont use md5Hash directly from solution
-            char md5Hash[32];
-            memcpy(md5Hash, solution.md5Hash, 32);
+            string md5Hash = solution.md5Hash;
 
             hexToByte(solution.nonce, nonce256.m256i_u8, 32);
             hexToByte(solution.miningSeed, seed256.m256i_u8, 32);
@@ -295,7 +292,7 @@ Napi::Value pushSolutionToVerifyQueue(const Napi::CallbackInfo &info)
     string computorId = info[2].As<Napi::String>().Utf8Value();
     string md5Hash = info[3].As<Napi::String>().Utf8Value();
 
-    solutionQueue->addSolution(Solution(seed.c_str(), nonce.c_str(), computorId.c_str(), md5Hash.c_str()));
+    solutionQueue->addSolution(Solution(seed.c_str(), nonce.c_str(), computorId.c_str(), md5Hash));
 
     return info.Env().Undefined();
 }

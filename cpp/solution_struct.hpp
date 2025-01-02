@@ -11,14 +11,15 @@ struct Solution
     char miningSeed[64];
     char nonce[64];
     char computorId[60];
-    char md5Hash[32];
+    string md5Hash;
 
-    Solution(const char *miningSeed, const char *nonce, const char *computorId, const char *md5Hash)
+    Solution(const char *miningSeed, const char *nonce, const char *computorId, string md5Hash)
     {
         memcpy(this->miningSeed, miningSeed, 64);
         memcpy(this->nonce, nonce, 64);
         memcpy(this->computorId, computorId, 60);
-        memcpy(this->md5Hash, md5Hash, 32);
+
+        this->md5Hash = md5Hash;
     }
 };
 

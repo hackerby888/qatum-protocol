@@ -7,6 +7,7 @@ import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
+import { Solution, SolutionData } from "../types/type";
 
 interface SolutionResult {
     md5Hash: string;
@@ -45,6 +46,8 @@ namespace NodeManager {
     //this seed is used to submit solution
     let currentSecretSeed = "";
     let nodeIp = "";
+
+    let solutionsToSubmitQueue: Solution[] = [];
 
     export function stopVerifyThread() {
         LOG("node", "stopping verify thread");
@@ -87,12 +90,51 @@ namespace NodeManager {
         }
     }
 
+    export function watchAndSubmitSolution() {
+        let isProcessing = false;
+        setInterval(async () => {
+            if (isProcessing) return;
+            let solution = solutionsToSubmitQueue.shift();
+            try {
+                isProcessing = true;
+                if (solution) {
+                    await sendSolution(
+                        solution.nonce,
+                        solution.seed,
+                        solution.computorId
+                    );
+                    LOG("node", `solution submitted: ${solution.md5Hash}`);
+                }
+                isProcessing = false;
+            } catch (e: any) {
+                if (solution) solutionsToSubmitQueue.push(solution);
+                isProcessing = false;
+                LOG("error", e.message);
+            }
+        }, FIVE_SECONDS);
+    }
+
     export function initVerifyThread(threads: number) {
         LOG("node", "init verify thread with " + threads + " threads");
         addon.initVerifyThread(
             threads,
             ({ md5Hash, isSolution }: SolutionResult) => {
-                SolutionManager.markAsVerifed(md5Hash, isSolution);
+                if (md5Hash.length > 32) {
+                    Platform.exit(1);
+                    md5Hash = md5Hash.slice(0, 32);
+                }
+                LOG(
+                    "node",
+                    "verifed solution: " + md5Hash + " isSolution " + isSolution
+                );
+                let theSolution =
+                    SolutionManager.getSolutionFromVerifying(md5Hash);
+
+                if (theSolution) {
+                    if (isSolution) solutionsToSubmitQueue.push(theSolution);
+
+                    SolutionManager.markAsVerifed(md5Hash, isSolution);
+                }
             }
         );
     }
@@ -100,8 +142,9 @@ namespace NodeManager {
     export async function init(ip: string, secretSeed: string) {
         LOG("node", "init node manager");
         currentSecretSeed = secretSeed;
-        initVerifyThread(4);
+        watchAndSubmitSolution();
         initLogger();
+        initVerifyThread(4);
         await initToNodeSocket(ip);
     }
 
@@ -111,9 +154,9 @@ namespace NodeManager {
         computorId: string
     ): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            let ip = ComputorIdManager.getComputorId(computorId).ip;
+            let ip = ComputorIdManager.getComputorId(computorId).ip || nodeIp;
             if (!ip) {
-                //   return reject(new Error("ip not found"));
+                return reject(new Error("ip to submit not found"));
             }
             addon.sendSol(
                 ip,
@@ -165,7 +208,7 @@ namespace NodeManager {
                 }
                 isProcessing = false;
             } catch (e: any) {
-                LOG("error", e.message);
+                LOG("warning", e.message);
             }
         }, FIVE_SECONDS * 2);
     }

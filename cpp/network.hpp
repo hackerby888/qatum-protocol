@@ -181,13 +181,13 @@ struct Socket
 
         if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
         {
-            log("error", "addon: error translating command line ip address to usable one");
+            log("error", "[addon] error translating command line ip address to usable one");
             return -1;
         }
 
         if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
-            log("error", "addon: failed to connect " + string(nodeIp));
+            log("error", "[addon] failed to connect " + string(nodeIp));
             return -1;
         }
 
@@ -282,7 +282,6 @@ struct Socket
         // If provided seed is the for computor public key, generate sharedKey into first 32 bytes to encrypt message
         if (memcmp(&computorPublicKey, signingPublicKey, 32) == 0)
         {
-            cout << "sourcePublicKey and destinationPublicKey are the same (msg is encrypted) [0]" << endl;
             getSharedKey(privateKey, (const unsigned char *)&computorPublicKey, sharedKeyAndGammingNonce);
         }
 
@@ -361,10 +360,10 @@ struct Socket
         int retry = 0;
         while (!sendData((uint8_t *)&packet, packet.header.size()))
         {
-            cout << "addon: failed to send solution to node\n";
             this_thread::sleep_for(std::chrono::milliseconds(500));
             if (retry++ >= 3)
             {
+                log("error", "[addon] failed to send solution to node");
                 return false;
             }
         }

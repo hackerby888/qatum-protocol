@@ -2,12 +2,8 @@ import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
 import Platform from "../platform/exit";
-interface Solution {
-    seed: string;
-    nonce: string;
-    computorId: string;
-    md5Hash: string;
-}
+import { Solution } from "../types/type";
+
 namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
     let solutionVerifingQue: Map<string, Solution> = new Map();
@@ -113,6 +109,10 @@ namespace SolutionManager {
 
     export function getVerifedLength() {
         return solutionVerifedQue.size;
+    }
+
+    export function getSolutionFromVerifying(md5Hash: string) {
+        return solutionVerifingQue.get(md5Hash);
     }
 
     export function print() {

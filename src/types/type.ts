@@ -25,4 +25,11 @@ interface SolutionData {
     miningSeed: string;
 }
 
-export { StratumSocket, Transaction, SolutionData };
+interface Solution {
+    seed: string;
+    nonce: string;
+    computorId: string;
+    md5Hash: string;
+}
+
+export { StratumSocket, Transaction, SolutionData, Solution };

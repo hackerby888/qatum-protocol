@@ -4,12 +4,21 @@ import Platform from "../platform/exit";
 import StratumEvents from "../stratum/stratum-events";
 import { SolutionData, Transaction } from "../types/type";
 import LOG from "../utils/logger";
+import { qfetch } from "../utils/qfetch";
 import fetchListIds from "../utils/qli-apis/fetch-list-ids";
 import fetchScore from "../utils/qli-apis/fetch-score";
 import ApiData from "../utils/qli-apis/global-data";
 import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
 import fs from "fs";
+interface TicksData {
+    tickInfo: {
+        tick: number;
+        duration: number;
+        epoch: number;
+        initialTick: number;
+    };
+}
 export namespace ComputorIdManager {
     let miningConfig = {
         diffToBalance: 1000, // hashrate difference to balance
@@ -17,14 +26,7 @@ export namespace ComputorIdManager {
 
     let currentEpoch: number = 0;
 
-    let ticksData: {
-        tickInfo: {
-            tick: number;
-            duration: number;
-            epoch: number;
-            initialTick: number;
-        };
-    };
+    let ticksData: TicksData;
 
     let emptyTicks: number[];
 
@@ -55,7 +57,7 @@ export namespace ComputorIdManager {
             solutionsFetched: SolutionData[];
         };
     } = {
-        MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN: {
+        PRKMZXJAOZERDCGLQUVESFWAHAABWIVWCPSLYBHWWFGADFZEONJATUBAMRQC: {
             workers: {},
             totalHashrate: 0,
             lscore: 0,
@@ -77,10 +79,11 @@ export namespace ComputorIdManager {
         nonce: string,
         miningSeed: string
     ) {
-        computorIdMap[computorId].submittedSolutions[miningSeed + nonce] = {
-            isWrittenToBC: false,
-            submittedTime: Date.now(),
-        };
+        if (computorIdMap[computorId])
+            computorIdMap[computorId].submittedSolutions[miningSeed + nonce] = {
+                isWrittenToBC: false,
+                submittedTime: Date.now(),
+            };
     }
 
     export function deleteAllWorkersForAllComputorId() {
@@ -91,7 +94,7 @@ export namespace ComputorIdManager {
     }
 
     export function saveToDisk(epoch?: number) {
-        if (!epoch && !ticksData.tickInfo.epoch) {
+        if (!epoch && !ticksData?.tickInfo?.epoch) {
             return;
         }
         deleteAllWorkersForAllComputorId();
@@ -107,7 +110,7 @@ export namespace ComputorIdManager {
         let candicateEpoch = epoch || ticksData?.tickInfo?.epoch;
         try {
             if (!candicateEpoch) {
-                LOG("error", "epoch not found");
+                LOG("error", "epoch not found (no tick data)");
                 Platform.exit(1);
             }
 
@@ -150,7 +153,6 @@ export namespace ComputorIdManager {
             Platform.exit(1);
         }
         loadFromDisk();
-        await setAliasForAllComputorId();
         await setScoreForAllComputorId();
         await syncAvgScore();
         setInterval(async () => {
@@ -431,22 +433,6 @@ export namespace ComputorIdManager {
         return hashrate;
     }
 
-    export async function setAliasForAllComputorId() {
-        let data: {
-            identity: string;
-            alias: string;
-        }[] = await fetchListIds();
-        if (!data) return;
-
-        for (let computorId in computorIdMap) {
-            let alias = data.find(
-                (item) => item.identity === computorId
-            )?.alias;
-
-            if (alias) getComputorId(computorId).alias = alias;
-        }
-    }
-
     export async function resetComputorData() {
         for (let computorId in computorIdMap) {
             computorIdMap[computorId].lscore = 0;
@@ -459,17 +445,29 @@ export namespace ComputorIdManager {
     }
 
     async function syncTicksData() {
-        ticksData = await fetch(`https://rpc.qubic.org/v1/tick-info`).then(
-            (data) => data.json()
-        );
+        let localTicksData: TicksData = await qfetch(
+            `https://rpc.qubic.org/v1/tick-info`
+        ).then((data) => data.json());
+
+        if (!isNaN(localTicksData.tickInfo.epoch)) {
+            ticksData = localTicksData;
+        } else {
+            throw new Error("failed to fetch ticks data");
+        }
     }
 
     async function syncEmptyTicks() {
-        emptyTicks = await fetch(
+        let localEmptyTicks = await qfetch(
             `https://rpc.qubic.org/v2/epochs/${ticksData.tickInfo.epoch}/empty-ticks?pageSize=100000`
         )
             .then((data) => data.json())
             .then((data) => data.emptyTicks);
+
+        if (Array.isArray(localEmptyTicks)) {
+            emptyTicks = localEmptyTicks;
+        } else {
+            throw new Error("failed to fetch empty ticks");
+        }
     }
 
     export async function fetchScoreV2() {
@@ -477,7 +475,7 @@ export namespace ComputorIdManager {
             await syncTicksData();
             await syncEmptyTicks();
         } catch (error: any) {
-            LOG("error", `failed to connect to qubic rpc server`);
+            LOG("error", `${error.message}, skip sync score`);
             return;
         }
 
@@ -492,7 +490,7 @@ export namespace ComputorIdManager {
 
         for (let computorId in computorIdMap) {
             try {
-                let data = await fetch(
+                let data = await qfetch(
                     `https://rpc.qubic.org/v2/identities/${computorId}/transfers?startTick=${ticksData.tickInfo.initialTick}&endTick=${ticksData.tickInfo.tick}`
                 );
 
@@ -545,14 +543,13 @@ export namespace ComputorIdManager {
                 computorIdMap[computorId].lastUpdateScoreTime = Date.now();
                 computorIdMap[computorId].solutionsFetched = solutionsFetched;
             } catch (error: any) {
-                LOG("error", error.message);
+                LOG("error", "[sync score] " + error.message);
             }
         }
     }
 
     export async function setScoreForAllComputorId() {
         await fetchScoreV2();
-        console.log(computorIdMap);
     }
 
     export function addComputorId(computorId: string, newSettings: any = {}) {
