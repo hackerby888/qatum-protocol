@@ -273,7 +273,7 @@ Napi::Value getMiningCurrentMiningSeed(const Napi::CallbackInfo &info)
     return info.Env().Undefined();
 }
 
-Napi::Value sendSol(const Napi::CallbackInfo &info)
+Napi::Value sendSolution(const Napi::CallbackInfo &info)
 {
     Function cb = info[5].As<Function>();
     SubmitSolutionWorker *wk = new SubmitSolutionWorker(cb, info[0].As<Napi::String>(), info[1].As<Napi::String>(), info[2].As<Napi::String>(), info[3].As<Napi::String>(), info[4].As<Napi::String>());
@@ -303,8 +303,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set(Napi::String::New(env, "getMiningCurrentMiningSeed"),
                 Napi::Function::New(env, getMiningCurrentMiningSeed));
 
-    exports.Set(Napi::String::New(env, "sendSol"),
-                Napi::Function::New(env, sendSol));
+    exports.Set(Napi::String::New(env, "sendSolution"),
+                Napi::Function::New(env, sendSolution));
 
     exports.Set(Napi::String::New(env, "initLogger"),
                 Napi::Function::New(env, initLogger));

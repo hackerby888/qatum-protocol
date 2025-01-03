@@ -18,7 +18,7 @@ interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
     getMiningCurrentMiningSeed: (cb: (miningSeed: string) => void) => void;
-    sendSol: (
+    sendSolution: (
         ip: string,
         nonce: string,
         miningSeed: string,
@@ -134,7 +134,7 @@ namespace NodeManager {
                 if (theSolution) {
                     if (isSolution) solutionsToSubmitQueue.push(theSolution);
 
-                    SolutionManager.markAsVerifed(md5Hash, isSolution);
+                    SolutionManager.markAsVerified(md5Hash, isSolution);
                 }
             }
         );
@@ -161,7 +161,7 @@ namespace NodeManager {
             if (!ip) {
                 return reject(new Error("ip to submit not found"));
             }
-            addon.sendSol(
+            addon.sendSolution(
                 ip,
                 nonceHex,
                 seedHex,

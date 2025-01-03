@@ -6,8 +6,8 @@ import { Solution } from "../types/type";
 
 namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
-    let solutionVerifingQue: Map<string, Solution> = new Map();
-    let solutionVerifedQue: Map<
+    let solutionVerifyingQueue: Map<string, Solution> = new Map();
+    let solutionVerifiedQueue: Map<
         string,
         Solution & {
             isSolution: boolean;
@@ -18,12 +18,12 @@ namespace SolutionManager {
 
     export function init() {
         setInterval(() => {
-            if (solutionVerifingQue.size < threads * 2) {
+            if (solutionVerifyingQueue.size < threads * 2) {
                 let needToPush = Math.min(
                     solutionQueue.size,
-                    threads * 2 - solutionVerifingQue.size
+                    threads * 2 - solutionVerifyingQueue.size
                 );
-                addNSolutionToVerifing(needToPush);
+                addNSolutionToVerifying(needToPush);
             }
         }, 100);
     }
@@ -36,8 +36,8 @@ namespace SolutionManager {
         let md5Hash = await md5(seed + nonce + computorId);
         if (
             solutionQueue.has(md5Hash) ||
-            solutionVerifingQue.has(md5Hash) ||
-            solutionVerifedQue.has(md5Hash)
+            solutionVerifyingQueue.has(md5Hash) ||
+            solutionVerifiedQueue.has(md5Hash)
         )
             return false;
 
@@ -64,7 +64,7 @@ namespace SolutionManager {
                 string,
                 Solution
             ];
-            solutionVerifingQue.set(md5Hash, solution);
+            solutionVerifyingQueue.set(md5Hash, solution);
             NodeManager.pushSolutionToVerifyQueue(
                 solution.seed,
                 solution.nonce,
@@ -78,7 +78,7 @@ namespace SolutionManager {
         }
     }
 
-    export function addNSolutionToVerifing(n: number) {
+    export function addNSolutionToVerifying(n: number) {
         let i = 0;
         while (i < n && !isEmpty()) {
             popSolution();
@@ -86,39 +86,39 @@ namespace SolutionManager {
         }
     }
 
-    export function markAsVerifed(md5Hash: string, isSolution: boolean) {
-        let solution = solutionVerifingQue.get(md5Hash) as Solution;
-        solutionVerifedQue.set(md5Hash, {
+    export function markAsVerified(md5Hash: string, isSolution: boolean) {
+        let solution = solutionVerifyingQueue.get(md5Hash) as Solution;
+        solutionVerifiedQueue.set(md5Hash, {
             ...solution,
             isSolution,
         });
-        solutionVerifingQue.delete(md5Hash);
+        solutionVerifyingQueue.delete(md5Hash);
     }
 
     export function isEmpty() {
         return solutionQueue.size === 0;
     }
 
-    export function isVerifingEmpty() {
-        return solutionVerifingQue.size === 0;
+    export function isVerifyingEmpty() {
+        return solutionVerifyingQueue.size === 0;
     }
 
-    export function getVerifingLength() {
-        return solutionVerifingQue.size;
+    export function getVerifyingLength() {
+        return solutionVerifyingQueue.size;
     }
 
-    export function getVerifedLength() {
-        return solutionVerifedQue.size;
+    export function getVerifiedLength() {
+        return solutionVerifiedQueue.size;
     }
 
     export function getSolutionFromVerifying(md5Hash: string) {
-        return solutionVerifingQue.get(md5Hash);
+        return solutionVerifyingQueue.get(md5Hash);
     }
 
     export function print() {
         console.log("solutionQueue", solutionQueue);
-        console.log("solutionVerifingQue", solutionVerifingQue);
-        console.log("solutionVerifedQue", solutionVerifedQue);
+        console.log("solutionVerifyingQueue", solutionVerifyingQueue);
+        console.log("solutionVerifiedQueue", solutionVerifiedQueue);
     }
 }
 
