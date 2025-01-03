@@ -32,4 +32,9 @@ interface Solution {
     md5Hash: string;
 }
 
-export { QatumSocket, Transaction, SolutionData, Solution };
+interface SolutionResult {
+    md5Hash: string;
+    isSolution: boolean;
+}
+
+export { QatumSocket, Transaction, SolutionData, Solution, SolutionResult };

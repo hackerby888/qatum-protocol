@@ -9,11 +9,12 @@ export default function LOG(
         | "warning"
         | "pow"
         | "sys"
-        | "wallet",
+        | "wallet"
+        | "cluster",
     message: string
 ) {
     function printPadding(colorer: any, text: string) {
-        const NEEDED_PADDING = 7;
+        const NEEDED_PADDING = 8;
         const padding = NEEDED_PADDING - text.length;
         process.stdout.write(" ");
         process.stdout.write(colorer(text));
@@ -31,6 +32,7 @@ export default function LOG(
         pow: chalk.bold.green,
         sys: chalk.bold.white,
         wallet: chalk.bold.hex("#8803fc"),
+        cluster: chalk.bold.hex("#fcb103"),
     };
     process.stdout.write(
         `${chalk.hex("#1A7F82")(

@@ -7,13 +7,9 @@ import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
-import { Solution, SolutionData } from "../types/type";
+import { Solution, SolutionData, SolutionResult } from "../types/type";
 import os from "os";
 
-interface SolutionResult {
-    md5Hash: string;
-    isSolution: boolean;
-}
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
@@ -115,29 +111,31 @@ namespace NodeManager {
         }, FIVE_SECONDS);
     }
 
+    export function handleOnVerifiedSolution({
+        md5Hash,
+        isSolution,
+    }: SolutionResult) {
+        if (md5Hash.length > 32) {
+            md5Hash = md5Hash.slice(0, 32);
+        }
+        LOG(
+            "node",
+            "verifed solution: " + md5Hash + " isSolution " + isSolution
+        );
+        let theSolution =
+            SolutionManager.getSolutionFromVerifying(md5Hash) ||
+            SolutionManager.getSolutionFromClusterVerifying(md5Hash);
+
+        if (theSolution) {
+            if (isSolution) solutionsToSubmitQueue.push(theSolution);
+
+            SolutionManager.markAsVerified(md5Hash, isSolution);
+        }
+    }
+
     export function initVerifyThread(threads: number) {
         LOG("node", "init verify thread with " + threads + " threads");
-        addon.initVerifyThread(
-            threads,
-            ({ md5Hash, isSolution }: SolutionResult) => {
-                if (md5Hash.length > 32) {
-                    Platform.exit(1);
-                    md5Hash = md5Hash.slice(0, 32);
-                }
-                LOG(
-                    "node",
-                    "verifed solution: " + md5Hash + " isSolution " + isSolution
-                );
-                let theSolution =
-                    SolutionManager.getSolutionFromVerifying(md5Hash);
-
-                if (theSolution) {
-                    if (isSolution) solutionsToSubmitQueue.push(theSolution);
-
-                    SolutionManager.markAsVerified(md5Hash, isSolution);
-                }
-            }
-        );
+        addon.initVerifyThread(threads, handleOnVerifiedSolution);
     }
 
     export async function init(ip: string, secretSeed: string) {
@@ -146,7 +144,7 @@ namespace NodeManager {
         watchAndSubmitSolution();
         initLogger();
         initVerifyThread(
-            Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length - 1
+            Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
         );
         await initToNodeSocket(ip);
     }
