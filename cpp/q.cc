@@ -16,7 +16,6 @@ using namespace std;
 using namespace Napi;
 
 Socket qsocket;
-bool isConnected = false;
 string globalIp;
 
 Napi::ThreadSafeFunction tsfn;
@@ -71,7 +70,6 @@ public:
 
     void Execute() override
     {
-
         if (qsocket.isConnected)
         {
             qsocket.close();

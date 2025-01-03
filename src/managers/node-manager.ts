@@ -8,6 +8,7 @@ import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
 import { Solution, SolutionData } from "../types/type";
+import os from "os";
 
 interface SolutionResult {
     md5Hash: string;
@@ -77,7 +78,7 @@ namespace NodeManager {
                     if (isOk) {
                         resolve(undefined);
                     } else {
-                        reject(undefined);
+                        LOG("error", "failed to connect to node");
                         Platform.exit(1);
                     }
                 });
@@ -144,7 +145,9 @@ namespace NodeManager {
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
         initLogger();
-        initVerifyThread(4);
+        initVerifyThread(
+            Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length - 1
+        );
         await initToNodeSocket(ip);
     }
 
@@ -193,6 +196,7 @@ namespace NodeManager {
 
     export function watchMiningSeed() {
         let isProcessing = false;
+        let failedCount = 0;
         setInterval(async () => {
             try {
                 if (isProcessing) return;
@@ -207,8 +211,9 @@ namespace NodeManager {
                     LOG("node", "new seed: " + currentMiningSeed);
                 }
                 isProcessing = false;
+                failedCount = 0;
             } catch (e: any) {
-                LOG("warning", e.message);
+                if (failedCount > 3) LOG("warning", e.message);
             }
         }, FIVE_SECONDS * 2);
     }
