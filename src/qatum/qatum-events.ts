@@ -1,6 +1,6 @@
-import StratumInterface from "./stratum-interface";
+import QatumInterface from "./qatum-interface";
 
-namespace StratumEvents {
+namespace QatumEvents {
     export const DELIMITER = "\n";
     export const eventsId = {
         SUBSCRIBE: 1,
@@ -14,7 +14,7 @@ namespace StratumEvents {
         result: boolean,
         error: string | null
     ): string {
-        let packet: StratumInterface.Server.SubscribePacket = {
+        let packet: QatumInterface.Server.SubscribePacket = {
             id: eventsId.SUBSCRIBE,
             result,
             error,
@@ -23,7 +23,7 @@ namespace StratumEvents {
     }
 
     export function getNewComputorIdPacket(computorId: string): string {
-        let packet: StratumInterface.Server.NewComputorIdPacket = {
+        let packet: QatumInterface.Server.NewComputorIdPacket = {
             id: eventsId.NEW_COMPUTOR_ID,
             computorId,
         };
@@ -31,7 +31,7 @@ namespace StratumEvents {
     }
 
     export function getNewSeedPacket(seed: string): string {
-        let packet: StratumInterface.Server.NewSeedPacket = {
+        let packet: QatumInterface.Server.NewSeedPacket = {
             id: eventsId.NEW_SEED,
             seed,
             isEmpty: parseInt(seed) === 0,
@@ -43,7 +43,7 @@ namespace StratumEvents {
         result: boolean,
         error?: string
     ): string {
-        let packet: StratumInterface.Server.SubmitResultPacket = {
+        let packet: QatumInterface.Server.SubmitResultPacket = {
             id: eventsId.SUBMIT_RESULT,
             result,
             error: error || null,
@@ -52,4 +52,4 @@ namespace StratumEvents {
     }
 }
 
-export default StratumEvents;
+export default QatumEvents;

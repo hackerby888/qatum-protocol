@@ -3,12 +3,11 @@ import "dotenv/config";
 import HttpServer from "./http/http-server";
 import { ComputorIdManager } from "./managers/computor-id-manger";
 import NodeManager from "./managers/node-manager";
-import StratumServer from "./stratum/stratum-server";
-import { ONE_MINUTE } from "./consts/time";
 import fs from "fs";
-import { DATA_PATH, ROOT_DIR } from "./consts/path";
+import { DATA_PATH } from "./consts/path";
 import Platform from "./platform/exit";
 import { SolutionManager } from "./managers/solution-manager";
+import QatumServer from "./qatum/qatum-server";
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -24,7 +23,7 @@ async function main() {
         process.env.NODE_IP as string,
         process.env.SECRET_SEED as string
     );
-    await StratumServer.createServer(Number(process.env.STRATUM_PORT));
+    await QatumServer.createServer(Number(process.env.QATUM_PORT));
     await HttpServer.createServer(Number(process.env.HTTP_PORT));
 }
 

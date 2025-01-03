@@ -1,15 +1,15 @@
-import { StratumSocket } from "../types/type";
+import { QatumSocket } from "../types/type";
 
 namespace SocketManager {
     let socketMap: {
-        [key: string]: StratumSocket;
+        [key: string]: QatumSocket;
     } = {};
 
-    export function addSocket(socket: StratumSocket) {
+    export function addSocket(socket: QatumSocket) {
         socketMap[socket.randomUUID] = socket;
     }
 
-    export function removeSocket(socket: StratumSocket) {
+    export function removeSocket(socket: QatumSocket) {
         delete socketMap[socket.randomUUID];
     }
 

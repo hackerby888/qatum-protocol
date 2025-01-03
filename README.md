@@ -22,7 +22,7 @@ Qatum is the stratum-like protocol for qubic.
 ```ts
 # create .env file on project's root folder and paste following variables
 HTTP_PORT=30000
-STRATUM_PORT=30001
+QATUM_PORT=30001
 NODE_IP = "1.1.1.1"
 SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" #used to submit solution
 ```

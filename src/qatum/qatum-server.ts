@@ -1,19 +1,19 @@
 import net from "net";
 import LOG from "../utils/logger";
-import { StratumSocket } from "../types/type";
+import { QatumSocket } from "../types/type";
 import { randomUUID } from "crypto";
-import StratumEvents from "./stratum-events";
-import StratumInterface from "./stratum-interface";
+import QatumEvents from "./qatum-events";
+import QatumInterface from "./qatum-interface";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 import NodeManager from "../managers/node-manager";
 import { SocketManager } from "../managers/socket-manager";
 import { SolutionManager } from "../managers/solution-manager";
 
-namespace StratumServer {
+namespace QatumServer {
     export async function createServer(port: number): Promise<void> {
         const server = net.createServer((socket) => {
-            let stratumSocket = socket as StratumSocket;
-            stratumSocket.randomUUID = randomUUID();
+            let qatumSocket = socket as QatumSocket;
+            qatumSocket.randomUUID = randomUUID();
             socket.setKeepAlive(true);
             socket.setEncoding("utf-8");
             let buffer: string = "";
@@ -21,18 +21,18 @@ namespace StratumServer {
             const handler = async (data: string) => {
                 let jsonObj = JSON.parse(data);
                 switch (jsonObj.id) {
-                    case StratumEvents.eventsId.SUBSCRIBE:
+                    case QatumEvents.eventsId.SUBSCRIBE:
                         {
                             let jsonObjTyped =
-                                jsonObj as StratumInterface.Client.SubscribePacket;
+                                jsonObj as QatumInterface.Client.SubscribePacket;
 
-                            stratumSocket.wallet = jsonObjTyped.wallet;
-                            stratumSocket.worker = jsonObjTyped.worker;
+                            qatumSocket.wallet = jsonObjTyped.wallet;
+                            qatumSocket.worker = jsonObjTyped.worker;
                             let candicateId =
                                 ComputorIdManager.getLowestHashrateActiveComputorId();
                             if (!candicateId) {
-                                stratumSocket.write(
-                                    StratumEvents.getAcceptedSubscribePacket(
+                                qatumSocket.write(
+                                    QatumEvents.getAcceptedSubscribePacket(
                                         false,
                                         "No computor id available"
                                     )
@@ -40,31 +40,29 @@ namespace StratumServer {
                                 socket.destroy();
                                 return;
                             }
-                            stratumSocket.write(
-                                StratumEvents.getAcceptedSubscribePacket(
+                            qatumSocket.write(
+                                QatumEvents.getAcceptedSubscribePacket(
                                     true,
                                     null
                                 )
                             );
-                            stratumSocket.write(
-                                StratumEvents.getNewComputorIdPacket(
-                                    candicateId
-                                )
+                            qatumSocket.write(
+                                QatumEvents.getNewComputorIdPacket(candicateId)
                             );
-                            stratumSocket.write(
-                                StratumEvents.getNewSeedPacket(
+                            qatumSocket.write(
+                                QatumEvents.getNewSeedPacket(
                                     NodeManager.getMiningSeed()
                                 )
                             );
-                            stratumSocket.computorId = candicateId;
-                            stratumSocket.isConnected = true;
-                            SocketManager.addSocket(stratumSocket);
+                            qatumSocket.computorId = candicateId;
+                            qatumSocket.isConnected = true;
+                            SocketManager.addSocket(qatumSocket);
                         }
                         break;
-                    case StratumEvents.eventsId.SUBMIT_RESULT:
+                    case QatumEvents.eventsId.SUBMIT_RESULT:
                         {
                             let jsonObjTyped =
-                                jsonObj as StratumInterface.Client.SubmitPacket;
+                                jsonObj as QatumInterface.Client.SubmitPacket;
                             try {
                                 if (
                                     jsonObjTyped.computorId.length !== 60 ||
@@ -90,12 +88,12 @@ namespace StratumServer {
                                     jsonObjTyped.nonce,
                                     jsonObjTyped.seed
                                 );
-                                stratumSocket.write(
-                                    StratumEvents.getSubmitResultPacket(true)
+                                qatumSocket.write(
+                                    QatumEvents.getSubmitResultPacket(true)
                                 );
                             } catch (e: any) {
-                                stratumSocket.write(
-                                    StratumEvents.getSubmitResultPacket(
+                                qatumSocket.write(
+                                    QatumEvents.getSubmitResultPacket(
                                         false,
                                         e.message
                                     )
@@ -103,15 +101,15 @@ namespace StratumServer {
                             }
                         }
                         break;
-                    case StratumEvents.eventsId.REPORT_HASHRATE:
+                    case QatumEvents.eventsId.REPORT_HASHRATE:
                         {
                             let jsonObjTyped =
-                                jsonObj as StratumInterface.Client.ReportHashratePacket;
+                                jsonObj as QatumInterface.Client.ReportHashratePacket;
 
                             ComputorIdManager.updateHashrate(
                                 jsonObjTyped.computorId ||
-                                    stratumSocket.computorId,
-                                stratumSocket.randomUUID,
+                                    qatumSocket.computorId,
+                                qatumSocket.randomUUID,
                                 jsonObjTyped.hashrate
                             );
                         }
@@ -129,7 +127,7 @@ namespace StratumServer {
                 }
 
                 buffer += data;
-                let dindex = buffer.indexOf(StratumEvents.DELIMITER);
+                let dindex = buffer.indexOf(QatumEvents.DELIMITER);
 
                 while (dindex > -1) {
                     try {
@@ -140,21 +138,21 @@ namespace StratumServer {
                     }
 
                     buffer = buffer.substring(
-                        dindex + StratumEvents.DELIMITER.length
+                        dindex + QatumEvents.DELIMITER.length
                     );
-                    dindex = buffer.indexOf(StratumEvents.DELIMITER);
+                    dindex = buffer.indexOf(QatumEvents.DELIMITER);
                 }
             });
 
             socket.on("end", () => {
-                SocketManager.removeSocket(stratumSocket);
-                ComputorIdManager.removeWorker("", stratumSocket.randomUUID);
+                SocketManager.removeSocket(qatumSocket);
+                ComputorIdManager.removeWorker("", qatumSocket.randomUUID);
             });
         });
         server.listen(port, () => {
-            LOG("stum", `stratum server is listening on port ${port}`);
+            LOG("stum", `qatum server is listening on port ${port}`);
         });
     }
 }
 
-export default StratumServer;
+export default QatumServer;

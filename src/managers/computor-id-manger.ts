@@ -1,7 +1,7 @@
 import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
 import Platform from "../platform/exit";
-import StratumEvents from "../stratum/stratum-events";
+import QatumEvents from "../qatum/qatum-events";
 import { SolutionData, Transaction } from "../types/type";
 import LOG from "../utils/logger";
 import { qfetch } from "../utils/qfetch";
@@ -237,7 +237,7 @@ export namespace ComputorIdManager {
             let currentComputorId = getComputorIdBySocketUUID(socketUUID);
             if (currentComputorId !== thisSocket.computorId) {
                 thisSocket.write(
-                    StratumEvents.getNewComputorIdPacket(
+                    QatumEvents.getNewComputorIdPacket(
                         currentComputorId as string
                     )
                 );
@@ -401,7 +401,7 @@ export namespace ComputorIdManager {
                     let thisSocket = SocketManager.getSocket(candicate.uuid);
                     if (!thisSocket) continue;
                     thisSocket?.write(
-                        StratumEvents.getNewComputorIdPacket(
+                        QatumEvents.getNewComputorIdPacket(
                             lowestTotalHashrateId
                         )
                     );

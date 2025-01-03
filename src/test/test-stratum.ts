@@ -1,6 +1,6 @@
 import "dotenv/config";
 import net from "net";
-import StratumEvents from "../stratum/stratum-events";
+import StratumEvents from "../qatum/qatum-events";
 
 let socket = net.connect(Number(process.env.STRATUM_PORT), "localhost", () => {
     console.log("Connected to stratum server");

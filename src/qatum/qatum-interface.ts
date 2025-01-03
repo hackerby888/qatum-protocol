@@ -1,4 +1,4 @@
-namespace StratumInterface {
+namespace QatumInterface {
     export namespace Client {
         export interface SubscribePacket {
             id: number;
@@ -45,4 +45,4 @@ namespace StratumInterface {
         }
     }
 }
-export default StratumInterface;
+export default QatumInterface;

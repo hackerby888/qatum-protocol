@@ -1,7 +1,7 @@
 import bindings from "bindings";
 import LOG from "../utils/logger";
 import { SocketManager } from "./socket-manager";
-import StratumEvents from "../stratum/stratum-events";
+import QatumEvents from "../qatum/qatum-events";
 import { FIVE_SECONDS } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
@@ -206,7 +206,7 @@ namespace NodeManager {
                 await syncMiningSeed();
                 if (oldSeed !== currentMiningSeed) {
                     SocketManager.broadcast(
-                        StratumEvents.getNewSeedPacket(currentMiningSeed)
+                        QatumEvents.getNewSeedPacket(currentMiningSeed)
                     );
                     LOG("node", "new seed: " + currentMiningSeed);
                 }

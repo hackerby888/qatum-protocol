@@ -1,6 +1,6 @@
 import net from "net";
 
-type StratumSocket = net.Socket & {
+type QatumSocket = net.Socket & {
     isConnected: boolean;
     randomUUID: string;
     computorId: string;
@@ -32,4 +32,4 @@ interface Solution {
     md5Hash: string;
 }
 
-export { StratumSocket, Transaction, SolutionData, Solution };
+export { QatumSocket, Transaction, SolutionData, Solution };
