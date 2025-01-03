@@ -8,7 +8,7 @@ using namespace Napi;
 Napi::ThreadSafeFunction threadSafeLogger;
 // bool callbackWasSet = false;
 
-void initLogger(const Napi::CallbackInfo &info)
+Value initLogger(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
 
@@ -16,6 +16,8 @@ void initLogger(const Napi::CallbackInfo &info)
 
     threadSafeLogger =
         Napi::ThreadSafeFunction::New(env, napiFunction, "threadSafeLogger", 0, 1);
+
+    return env.Undefined();
 }
 
 void log(std::string type, std::string msg)

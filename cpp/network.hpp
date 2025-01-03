@@ -181,13 +181,11 @@ struct Socket
 
         if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
         {
-            log("error", "[addon] error translating command line ip address to usable one");
             return -1;
         }
 
         if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
-            log("error", "[addon] failed to connect " + string(nodeIp));
             return -1;
         }
 
