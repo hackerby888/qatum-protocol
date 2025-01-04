@@ -111,15 +111,15 @@ namespace NodeManager {
         }, FIVE_SECONDS);
     }
 
-    export function handleOnVerifiedSolution({
-        md5Hash,
-        isSolution,
-    }: SolutionResult) {
+    export function handleOnVerifiedSolution(
+        { md5Hash, isSolution }: SolutionResult,
+        fromCluster: boolean = false
+    ) {
         if (md5Hash.length > 32) {
             md5Hash = md5Hash.slice(0, 32);
         }
         LOG(
-            "node",
+            fromCluster ? "cluster" : "node",
             "verifed solution: " + md5Hash + " isSolution " + isSolution
         );
         let theSolution =

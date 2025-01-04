@@ -5,14 +5,17 @@ import { SolutionManager } from "../managers/solution-manager";
 import { Solution, SolutionResult } from "../types/type";
 import NodeManager from "../managers/node-manager";
 import os from "os";
-import { ONE_SECOND } from "../consts/time";
+import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
 
 let threads = Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 
 namespace VerificationClusterServer {
     export async function createServer(port: number) {
         const server = net.createServer((socket) => {
-            LOG("cluster", "new cluster node connected");
+            LOG(
+                "cluster",
+                `new cluster node connected ${socket.remoteAddress}`
+            );
             socket.setKeepAlive(true);
             socket.setEncoding("utf-8");
             let buffer: string = "";
@@ -39,7 +42,7 @@ namespace VerificationClusterServer {
                     let solutions =
                         jsonObj?.solutionsVerified as SolutionResult[];
                     solutions?.forEach((solution) => {
-                        NodeManager.handleOnVerifiedSolution(solution);
+                        NodeManager.handleOnVerifiedSolution(solution, true);
                     });
                 }
             };
@@ -86,6 +89,8 @@ namespace VerificationClusterServer {
         let port = parseInt(server.split(":")[1]);
         let socket = new net.Socket();
         let buffer: string = "";
+        let getSolutionIntervalId: NodeJS.Timeout | null;
+        let submitSolutionId: NodeJS.Timeout | null;
 
         const handler = async (data: string) => {
             let jsonObj = JSON.parse(data) as {
@@ -108,13 +113,13 @@ namespace VerificationClusterServer {
             }
         };
 
-        socket.connect(port, host, () => {
+        const onConnect = () => {
             LOG(
                 "cluster",
                 "connected to cluster main server " + host + ":" + port
             );
 
-            setInterval(() => {
+            getSolutionIntervalId = setInterval(() => {
                 if (SolutionManager.getVerifyingLength() < threads * 2) {
                     let needToPush =
                         threads * 2 - SolutionManager.getVerifyingLength();
@@ -127,7 +132,7 @@ namespace VerificationClusterServer {
                 }
             }, 100);
 
-            setInterval(() => {
+            submitSolutionId = setInterval(() => {
                 if (SolutionManager.getVerifiedLength() > 0) {
                     let solutions =
                         SolutionManager.getVerifiedSolutionsResult() as SolutionResult[];
@@ -140,7 +145,9 @@ namespace VerificationClusterServer {
                     SolutionManager.clearVerifiedSolutions();
                 }
             }, ONE_SECOND);
-        });
+        };
+
+        socket.connect(port, host, onConnect);
 
         socket.on("data", (data) => {
             // Prevent ddos
@@ -166,12 +173,21 @@ namespace VerificationClusterServer {
             }
         });
 
-        socket.on("end", () => {
+        socket.on("close", () => {
             LOG("cluster", "disconnected from cluster main server");
+            if (getSolutionIntervalId) clearInterval(getSolutionIntervalId);
+            if (submitSolutionId) clearInterval(submitSolutionId);
+            getSolutionIntervalId = null;
+            submitSolutionId = null;
+
+            setTimeout(() => {
+                LOG("cluster", "reconnecting to cluster main server");
+                socket.connect(port, host, onConnect);
+            }, FIVE_SECONDS);
         });
 
         socket.on("error", (e) => {
-            LOG("error", e.message);
+            LOG("warning", e.message);
         });
     }
 }
