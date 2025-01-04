@@ -24,16 +24,29 @@ Qatum is the stratum-like protocol for qubic.
 Create `.env` file on project's root folder and edit following variables
 
 ```ts
-HTTP_PORT=30000
-QATUM_PORT=30001
+#main or verify
+MODE = "main"
+MAX_VERIFICATION_THREADS = 1
+HTTP_PORT = 3000
+QATUM_PORT = 3001
+CLUSTER_PORT = 3002
 NODE_IP = "1.1.1.1"
- #your seed used to submit solution
+ #your qubic secret seed used to submit solution
 SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+#only set when MODE = "verify"
+CLUSTER_MAIN_SERVER = "host:port"
 ```
 
 ## Documentation
 
 ![alt text](https://imgur.com/mQLY3W7.png)
+
+-   ** Mode **
+    This software can be ran as two modes
+
+        * **main**: Your server will be a pool that miner can connect and mining
+        * **verify**: Your server will help the main server speed up verification process, miners can't connect to this server and mining
 
 -   **Qatum Events Id**
 
