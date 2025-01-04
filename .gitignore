@@ -4,3 +4,4 @@ build/
 .env
 data/
 src/test/rpc.ts
+.vscode/
