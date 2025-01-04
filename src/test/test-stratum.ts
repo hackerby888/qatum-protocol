@@ -35,7 +35,7 @@ socket.on("data", (data) => {
             for (let i = 0; i < 50; i++) {
                 socket.write(
                     JSON.stringify({
-                        id: StratumEvents.eventsId.SUBMIT_RESULT,
+                        id: StratumEvents.eventsId.SUBMIT,
                         nonce: "716c692b637564618d005626ab3ac572435c1718e5ad1244bb5d599135c4d78f",
                         seed: `9e71612623790b3f7f817d783bb01d1f2dc638fe665d909786e7146098207${i
                             .toString()

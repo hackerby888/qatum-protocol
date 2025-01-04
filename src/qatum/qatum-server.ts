@@ -59,7 +59,7 @@ namespace QatumServer {
                             SocketManager.addSocket(qatumSocket);
                         }
                         break;
-                    case QatumEvents.eventsId.SUBMIT_RESULT:
+                    case QatumEvents.eventsId.SUBMIT:
                         {
                             let jsonObjTyped =
                                 jsonObj as QatumInterface.Client.SubmitPacket;

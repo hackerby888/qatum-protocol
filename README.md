@@ -1,6 +1,8 @@
-# Qatum &middot; [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/facebook/react/blob/main/LICENSE) [![npm version](https://img.shields.io/npm/v/react.svg?style=flat)]()
+# Qatum &middot; [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
 Qatum is the stratum-like protocol for qubic.
+
+> The client and backend implementation for the Qatum protocol are included in this repository.
 
 ## Requirement
 
@@ -12,24 +14,34 @@ Qatum is the stratum-like protocol for qubic.
 
 ## Run
 
--   npm i
+-   npm install
 -   npm run configure
 -   npm run build
 -   npm start
 
 ## Environment Variable
 
+Create `.env` file on project's root folder and edit following variables
+
 ```ts
-# create .env file on project's root folder and paste following variables
 HTTP_PORT=30000
 QATUM_PORT=30001
 NODE_IP = "1.1.1.1"
-SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" #used to submit solution
+ #your seed used to submit solution
+SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ```
 
 ## Documentation
 
-![alt text](https://i.ibb.co/Jq70KKq/qatum.png)
+```seq
+Client->Server: SubscribePacket
+Server->Client: SubscribePacket (Result)
+Server->Client: NewComputorIdPacket
+Server->Client: NewSeedPacket
+Client->Server: SubmitPacket
+Server->Client: SubmitPacket (Result)
+Client->Server: ReportHashratePacket
+```
 
 -   **Qatum Events Id**
 
@@ -38,7 +50,7 @@ SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" #used to
         SUBSCRIBE: 1,
         NEW_COMPUTOR_ID: 2,
         NEW_SEED: 3,
-        SUBMIT_RESULT: 4,
+        SUBMIT: 4,
         REPORT_HASHRATE: 5,
 };
 ```
@@ -55,8 +67,8 @@ export namespace Client {
 
     export interface SubmitPacket {
         id: number;
-        nonce: string; //hex format
-        seed: string; //hex format
+        nonce: string;
+        seed: string;
         computorId: string;
     }
 
@@ -89,9 +101,10 @@ export namespace Server {
         isEmpty: boolean;
     }
 
-    export interface SubmitResultPacket {
+    export interface SubmitPacket {
         id: number;
         result: boolean;
+        error: string | null;
     }
 }
 ```

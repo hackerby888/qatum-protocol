@@ -6,7 +6,7 @@ namespace QatumEvents {
         SUBSCRIBE: 1,
         NEW_COMPUTOR_ID: 2,
         NEW_SEED: 3,
-        SUBMIT_RESULT: 4,
+        SUBMIT: 4,
         REPORT_HASHRATE: 5,
     };
 
@@ -43,8 +43,8 @@ namespace QatumEvents {
         result: boolean,
         error?: string
     ): string {
-        let packet: QatumInterface.Server.SubmitResultPacket = {
-            id: eventsId.SUBMIT_RESULT,
+        let packet: QatumInterface.Server.SubmitPacket = {
+            id: eventsId.SUBMIT,
             result,
             error: error || null,
         };

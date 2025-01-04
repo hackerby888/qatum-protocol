@@ -38,7 +38,7 @@ namespace QatumInterface {
             isEmpty: boolean;
         }
 
-        export interface SubmitResultPacket {
+        export interface SubmitPacket {
             id: number;
             result: boolean;
             error: string | null;
