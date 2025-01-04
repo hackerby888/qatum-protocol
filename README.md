@@ -33,15 +33,7 @@ SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 ## Documentation
 
-```seq
-Client->Server: SubscribePacket
-Server->Client: SubscribePacket (Result)
-Server->Client: NewComputorIdPacket
-Server->Client: NewSeedPacket
-Client->Server: SubmitPacket
-Server->Client: SubmitPacket (Result)
-Client->Server: ReportHashratePacket
-```
+![alt text](https://imgur.com/mQLY3W7.png)
 
 -   **Qatum Events Id**
 
