@@ -588,6 +588,7 @@ export namespace ComputorIdManager {
     }
 
     export function removeComputorId(computorId: string) {
+        computorIdMap[computorId].mining = false;
         let workers = Object.keys(computorIdMap[computorId].workers);
         while (workers.length > 0) {
             moveWorkerToComputorId(

@@ -43,11 +43,10 @@ namespace SolutionManager {
             solutionVerifiedQueue.has(md5Hash) ||
             solutionClusterVerifyingQueue.has(md5Hash)
         )
-            return false;
-
+            return null;
         solutionQueue.set(md5Hash, { seed, nonce, computorId, md5Hash });
 
-        return true;
+        return md5Hash;
     }
 
     export function clear() {
@@ -152,6 +151,10 @@ namespace SolutionManager {
         }
 
         return solutions;
+    }
+
+    export function isSolutionValid(md5Hash: string) {
+        return solutionVerifiedQueue.get(md5Hash)?.isSolution || false;
     }
 
     export function print() {

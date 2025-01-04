@@ -8,6 +8,7 @@ import { ComputorIdManager } from "../managers/computor-id-manger";
 import NodeManager from "../managers/node-manager";
 import { SocketManager } from "../managers/socket-manager";
 import { SolutionManager } from "../managers/solution-manager";
+import WorkerManager from "../managers/worker-manager";
 
 namespace QatumServer {
     export async function createServer(port: number): Promise<void> {
@@ -39,6 +40,11 @@ namespace QatumServer {
                                 );
                                 return;
                             }
+                            WorkerManager.createWorker(
+                                qatumSocket.wallet,
+                                qatumSocket.randomUUID,
+                                qatumSocket.worker
+                            );
                             qatumSocket.write(
                                 QatumEvents.getAcceptedSubscribePacket(
                                     true,
@@ -72,13 +78,13 @@ namespace QatumServer {
                                         "invalid submit packet (wrong length)"
                                     );
                                 }
-                                let result = await SolutionManager.push(
+                                let md5Hash = await SolutionManager.push(
                                     jsonObjTyped.seed,
                                     jsonObjTyped.nonce,
                                     jsonObjTyped.computorId
                                 );
 
-                                if (!result) {
+                                if (!md5Hash) {
                                     throw new Error("duplicate solution");
                                 }
 
@@ -86,6 +92,11 @@ namespace QatumServer {
                                     jsonObjTyped.computorId,
                                     jsonObjTyped.nonce,
                                     jsonObjTyped.seed
+                                );
+                                WorkerManager.pushSolution(
+                                    qatumSocket.wallet,
+                                    qatumSocket.randomUUID,
+                                    md5Hash
                                 );
                                 qatumSocket.write(
                                     QatumEvents.getSubmitResultPacket(true)
@@ -108,6 +119,11 @@ namespace QatumServer {
                             ComputorIdManager.updateHashrate(
                                 jsonObjTyped.computorId ||
                                     qatumSocket.computorId,
+                                qatumSocket.randomUUID,
+                                jsonObjTyped.hashrate
+                            );
+                            WorkerManager.updateHashrate(
+                                qatumSocket.wallet,
                                 qatumSocket.randomUUID,
                                 jsonObjTyped.hashrate
                             );
@@ -144,6 +160,10 @@ namespace QatumServer {
             });
 
             socket.on("close", () => {
+                WorkerManager.setInactive(
+                    qatumSocket.wallet,
+                    qatumSocket.randomUUID
+                );
                 SocketManager.removeSocket(qatumSocket);
                 ComputorIdManager.removeWorker("", qatumSocket.randomUUID);
             });

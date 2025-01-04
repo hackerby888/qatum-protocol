@@ -37,4 +37,29 @@ interface SolutionResult {
     isSolution: boolean;
 }
 
-export { QatumSocket, Transaction, SolutionData, Solution, SolutionResult };
+interface QWorker {
+    name: string;
+    isActive: boolean;
+    hashrate: number;
+    solutions: string[];
+    lastActive: number;
+}
+
+interface QWorkerApi {
+    name: string;
+    isActive: boolean;
+    hashrate: number;
+    solutions: number;
+    solutionsVerified: number;
+    lastActive: number;
+}
+
+export {
+    QatumSocket,
+    Transaction,
+    SolutionData,
+    Solution,
+    SolutionResult,
+    QWorker,
+    QWorkerApi,
+};

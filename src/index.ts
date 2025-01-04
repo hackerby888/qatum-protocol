@@ -11,6 +11,7 @@ import QatumServer from "./qatum/qatum-server";
 import VerificationClusterServer from "./verification-cluster/cluster-socket";
 import os from "os";
 import LOG from "./utils/logger";
+import WorkerManager from "./managers/worker-manager";
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -21,6 +22,7 @@ function createDataPath() {
 async function main() {
     if (process.env.MODE === "main") {
         createDataPath();
+        WorkerManager.init();
         SolutionManager.init();
         await ComputorIdManager.init();
         await NodeManager.init(

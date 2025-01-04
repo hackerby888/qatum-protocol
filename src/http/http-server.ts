@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import LOG from "../utils/logger";
 import { ComputorIdManager } from "../managers/computor-id-manger";
+import WorkerManager from "../managers/worker-manager";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -93,6 +94,24 @@ namespace HttpServer {
             } catch (e: any) {
                 res.status(500).send(e.message);
             }
+        });
+
+        app.get("/workers", (req, res) => {
+            try {
+                let wallet = req.query.wallet as string;
+                let needActive = req.query.needActive === "true";
+                if (!wallet) {
+                    res.status(400).send("wallet is required");
+                    return;
+                }
+                res.send(WorkerManager.getWorkers(wallet, needActive));
+            } catch (e: any) {
+                res.status(500).send(e.message);
+            }
+        });
+
+        app.get("/globalStats", (req, res) => {
+            res.send(WorkerManager.getGlobalStats());
         });
 
         app.listen(httpPort, () => {
