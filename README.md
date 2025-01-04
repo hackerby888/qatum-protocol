@@ -42,13 +42,12 @@ CLUSTER_MAIN_SERVER = "host:port"
 
 ![alt text](https://imgur.com/mQLY3W7.png)
 
--   **Mode**
-    This software can be ran as two modes
+This software can be ran as two modes
 
-*   **main**: Your server will be a pool that miner can connect and mining
-*   **verify**: Your server will help the main server speed up verification process, miners can't connect to this server and mining
+-   **main**: Your server will be a pool that miner can connect and mining
+-   **verify**: Your server will help the main server speed up verification process, miners can't connect to this server and mining
 
--   **Qatum Events Id**
+*   **Qatum Events Id**
 
 ```ts
 {
