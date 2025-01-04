@@ -37,7 +37,6 @@ namespace QatumServer {
                                         "No computor id available"
                                     )
                                 );
-                                socket.destroy();
                                 return;
                             }
                             qatumSocket.write(
@@ -144,7 +143,7 @@ namespace QatumServer {
                 }
             });
 
-            socket.on("end", () => {
+            socket.on("close", () => {
                 SocketManager.removeSocket(qatumSocket);
                 ComputorIdManager.removeWorker("", qatumSocket.randomUUID);
             });
