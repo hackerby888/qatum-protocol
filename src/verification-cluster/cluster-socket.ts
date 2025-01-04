@@ -11,6 +11,12 @@ let threads = Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 
 namespace VerificationClusterServer {
     export async function createServer(port: number) {
+        if (isNaN(port)) {
+            return LOG(
+                "warning",
+                "cluster server port is not set, your cluster node will not be able to connect to the main server"
+            );
+        }
         const server = net.createServer((socket) => {
             LOG(
                 "cluster",
