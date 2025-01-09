@@ -3238,6 +3238,7 @@ VOID_FUNC_DECL sign(const unsigned char *subseed, const unsigned char *publicKey
     // Output: 64-byte signature
     unsigned char k[64];
     KangarooTwelve((unsigned char *)subseed, 32, k, 64);
+    std::cout << "k: " << k << std::endl;
     signWithNonceK(k, publicKey, messageDigest, signature);
 }
 

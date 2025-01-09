@@ -5,14 +5,14 @@
 using namespace std;
 int main()
 {
-    string seed1 = "caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac";
-    string seed2 = "caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab";
-    string msg = "hello";
+    const char *seed1 = "caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac";
+    const char *seed2 = "caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab";
+    const char *msg = "hellodasdasdasas";
 
     uint8_t signature1[64];
     uint8_t signature2[64];
-    signData(seed1.c_str(), (const uint8_t *)msg.c_str(), msg.size(), signature1);
-    signData(seed2.c_str(), (const uint8_t *)msg.c_str(), msg.size(), signature2);
+    signData(seed1, (const uint8_t *)msg, strlen(msg), signature1);
+    signData(seed2, (const uint8_t *)msg, strlen(msg), signature2);
 
     cout << "signature1: ";
     for (int i = 0; i < 64; i++)
