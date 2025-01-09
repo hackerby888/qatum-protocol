@@ -7,6 +7,10 @@
 #include "memory.hpp"
 #include "keyUtils.hpp"
 
+#if defined(__GNUC__) && !defined(__clang__)
+#define _andn_u64(a, b) __andn_u64(a, b)
+#endif
+
 #define ROL64(a, offset) ((((unsigned long long)a) << offset) ^ (((unsigned long long)a) >> (64 - offset)))
 
 #define KeccakF1600RoundConstant0 0x000000008000808bULL
