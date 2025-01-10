@@ -12,6 +12,7 @@ import VerificationClusterServer from "./verification-cluster/cluster-socket";
 import os from "os";
 import LOG from "./utils/logger";
 import WorkerManager from "./managers/worker-manager";
+import QatumDb from "./database/db";
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -24,6 +25,14 @@ async function main() {
         createDataPath();
         WorkerManager.init();
         SolutionManager.init();
+        if (process.env.MONGODB_URI) {
+            await QatumDb.connectDB();
+        } else {
+            LOG(
+                "warning",
+                "MONGODB_URI is not defined, skipping database connection (the pool still working)"
+            );
+        }
         await ComputorIdManager.init();
         await NodeManager.init(
             process.env.NODE_IP as string,

@@ -14,6 +14,7 @@ import { SocketManager } from "./socket-manager";
 import fs from "fs";
 import { SolutionManager } from "./solution-manager";
 import qliFetch from "../utils/qli-apis/qli-fetch";
+import WorkerManager from "./worker-manager";
 interface TicksData {
     tickInfo: {
         tick: number;
@@ -31,7 +32,7 @@ export namespace ComputorIdManager {
 
     let currentEpoch: number = 0;
 
-    let ticksData: TicksData;
+    export let ticksData: TicksData;
 
     let emptyTicks: number[];
 
@@ -534,6 +535,7 @@ export namespace ComputorIdManager {
             computorIdMap[computorId].solutionsFetched = [];
             computorIdMap[computorId].submittedSolutions = {};
         }
+        resetTargetForAllComputorId();
     }
 
     async function syncTicksData() {
@@ -582,7 +584,8 @@ export namespace ComputorIdManager {
         if (currentEpoch !== ticksData.tickInfo.epoch && currentEpoch !== 0) {
             //new epoch
             LOG("sys", `new epoch ${ticksData.tickInfo.epoch}`);
-            await saveToDisk(currentEpoch);
+            WorkerManager.calculateAndInsertRewardPayments(currentEpoch);
+            WorkerManager.clearSolutionsForAllWallets();
             await resetComputorData();
         }
 

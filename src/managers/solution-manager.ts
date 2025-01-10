@@ -2,22 +2,17 @@ import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
 import Platform from "../platform/exit";
-import { Solution, SolutionResult } from "../types/type";
+import { Solution, SolutionResult, SolutionState } from "../types/type";
 import LOG from "../utils/logger";
 import { DATA_PATH } from "../consts/path";
 import fs from "fs";
+import QatumDb from "../database/db";
 
 namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
     let solutionVerifyingQueue: Map<string, Solution> = new Map();
     let solutionClusterVerifyingQueue: Map<string, Solution> = new Map();
-    let solutionVerifiedQueue: Map<
-        string,
-        Solution & {
-            isSolution: boolean;
-            isWritten: boolean;
-        }
-    > = new Map();
+    let solutionVerifiedQueue: Map<string, SolutionState> = new Map();
 
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
@@ -124,7 +119,10 @@ namespace SolutionManager {
     export function trySetWritten(md5Hash: string) {
         let solution = solutionVerifiedQueue.get(md5Hash);
         if (solution && isSolutionValid(md5Hash)) {
-            solution.isWritten = true;
+            if (!solution.isWritten) {
+                QatumDb.setIsWrittenSolution(md5Hash);
+                solution.isWritten = true;
+            }
         }
     }
 
@@ -191,6 +189,10 @@ namespace SolutionManager {
         });
         solutionVerifyingQueue.delete(md5Hash);
         solutionClusterVerifyingQueue.delete(md5Hash);
+
+        QatumDb.insertSolution(
+            solutionVerifiedQueue.get(md5Hash) as SolutionState
+        );
     }
 
     export function isEmpty() {

@@ -13,6 +13,7 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
+        "@types/mongodb": "^4.0.7",
         "bindings": "^1.5.0",
         "chalk": "^4.1.2",
         "cors": "^2.8.5",
@@ -20,6 +21,7 @@
         "express": "^4.21.2",
         "fetch-retry": "^6.0.0",
         "hash-wasm": "^4.12.0",
+        "mongodb": "^6.12.0",
         "node-addon-api": "^8.3.0"
     },
     "gypfile": true,

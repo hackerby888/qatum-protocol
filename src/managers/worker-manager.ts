@@ -1,5 +1,6 @@
 import { DATA_PATH } from "../consts/path";
 import { ONE_DAY, THREE_MINUTES } from "../consts/time";
+import QatumDb from "../database/db";
 import { QWorker, QWorkerApi, Solution } from "../types/type";
 import LOG from "../utils/logger";
 import { SolutionManager } from "./solution-manager";
@@ -230,6 +231,51 @@ namespace WorkerManager {
         let worker = getWorker(wallet, workerId);
         if (!worker) return;
         worker.solutions.push(md5Hash);
+    }
+
+    export function calculateAndInsertRewardPayments(epoch: number) {
+        let reward: {
+            [wallet: string]: {
+                solutionsVerified: number;
+                solutionsWritten: number;
+                epoch: number;
+                insertedAt: number;
+                wallet: string;
+            };
+        } = {};
+        for (let [wallet, value] of workersMap) {
+            reward[wallet] = {
+                solutionsVerified: 0,
+                solutionsWritten: 0,
+                epoch,
+                insertedAt: Date.now(),
+                wallet,
+            };
+            value.forEach((worker) => {
+                worker.solutions.forEach((solution) => {
+                    if (SolutionManager.isSolutionValid(solution)) {
+                        reward[wallet].solutionsVerified++;
+                        if (SolutionManager.isSolutionWritten(solution)) {
+                            reward[wallet].solutionsWritten++;
+                        }
+                    }
+                });
+            });
+        }
+
+        let rewardPaymentsArray = [];
+        for (let wallet in reward) {
+            rewardPaymentsArray.push(reward[wallet]);
+        }
+        QatumDb.insertRewardPayments(rewardPaymentsArray);
+    }
+
+    export function clearSolutionsForAllWallets() {
+        workersMap.forEach((value) => {
+            value.forEach((worker) => {
+                worker.solutions = [];
+            });
+        });
     }
 }
 

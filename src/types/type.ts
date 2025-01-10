@@ -37,6 +37,11 @@ interface SolutionResult {
     isSolution: boolean;
 }
 
+type SolutionState = Solution & {
+    isSolution: boolean;
+    isWritten: boolean;
+};
+
 interface QWorker {
     name: string;
     isActive: boolean;
@@ -63,4 +68,5 @@ export {
     SolutionResult,
     QWorker,
     QWorkerApi,
+    SolutionState,
 };
