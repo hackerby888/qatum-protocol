@@ -59,7 +59,22 @@ export namespace ComputorIdManager {
             };
             solutionsFetched: SolutionData[];
         };
-    } = {};
+    } = {
+        MSKFZNEKCTUIYBIJCMPGZFQYHHCDBVPLJHOVGFHFXCUDIVQQUQYLGZIGMXPN: {
+            workers: {},
+            totalHashrate: 0,
+            score: 0,
+            bcscore: 0,
+            mining: true,
+            alias: "",
+            ip: "82.197.173.132",
+            followingAvgScore: false,
+            targetScore: undefined,
+            lastUpdateScoreTime: 0,
+            solutionsFetched: [],
+            submittedSolutions: {},
+        },
+    };
 
     export async function writeSolution(
         computorId: string,

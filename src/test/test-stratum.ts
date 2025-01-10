@@ -8,8 +8,8 @@ let socket = net.connect(Number(process.env.QATUM_PORT), "localhost", () => {
 socket.write(
     JSON.stringify({
         id: StratumEvents.eventsId.SUBSCRIBE,
-        wallet: "wallet",
-        worker: "wallet",
+        wallet: "wwwwww",
+        worker: "ww2",
     }) + "\n"
 );
 
@@ -33,6 +33,15 @@ socket.on("data", (data) => {
         console.log(jsonObj);
         if (jsonObj.id === StratumEvents.eventsId.NEW_COMPUTOR_ID) {
             for (let i = 0; i < 50; i++) {
+                socket.write(
+                    JSON.stringify({
+                        id: StratumEvents.eventsId.SUBMIT,
+                        nonce: "716c692b637564618f005650c1c2379fa17789938e3c5844956e68c031a2c670",
+                        seed: `df981a543e71952f527d4e4df2552375e261fbec22b4b0395c6737bfec2e9a57`,
+                        computorId:
+                            "MSKFZNEKCTUIYBIJCMPGZFQYHHCDBVPLJHOVGFHFXCUDIVQQUQYLGZIGMXPN",
+                    }) + "\n"
+                );
                 socket.write(
                     JSON.stringify({
                         id: StratumEvents.eventsId.SUBMIT,

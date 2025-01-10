@@ -46,7 +46,7 @@ namespace SolutionManager {
             moduleData.solutionVerifyingQueue = {};
 
             fs.writeFileSync(
-                `${DATA_PATH}/solutions.json`,
+                `${DATA_PATH}/solutions-${process.env.MODE}.json`,
                 JSON.stringify(moduleData)
             );
         } catch (e: any) {
@@ -57,7 +57,10 @@ namespace SolutionManager {
     export function loadFromDisk() {
         try {
             let moduleData = JSON.parse(
-                fs.readFileSync(`${DATA_PATH}/solutions.json`, "utf-8")
+                fs.readFileSync(
+                    `${DATA_PATH}/solutions-${process.env.MODE}.json`,
+                    "utf-8"
+                )
             );
 
             solutionQueue = new Map(Object.entries(moduleData.solutionQueue));
@@ -72,7 +75,10 @@ namespace SolutionManager {
             );
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `solutions.json not found, creating new one`);
+                LOG(
+                    "sys",
+                    `solutions-${process.env.MODE}.json not found, creating new one`
+                );
             } else {
                 LOG("error", error.message);
             }
