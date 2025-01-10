@@ -3,6 +3,7 @@ import cors from "cors";
 import LOG from "../utils/logger";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 import WorkerManager from "../managers/worker-manager";
+import { SolutionManager } from "../managers/solution-manager";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -26,7 +27,9 @@ namespace HttpServer {
         app.put("/mining-config", (req, res) => {
             try {
                 let miningConfig: {
-                    diffToBalance: number;
+                    diffHashRateToBalance: number;
+                    diffSolutionToBalance: number;
+                    avgOverRate: number;
                 } = req.body as any;
                 ComputorIdManager.setMiningConfig(miningConfig);
                 res.status(200).send();
@@ -105,6 +108,14 @@ namespace HttpServer {
                     return;
                 }
                 res.send(WorkerManager.getWorkers(wallet, needActive, true));
+            } catch (e: any) {
+                res.status(500).send(e.message);
+            }
+        });
+
+        app.get("/solutions", (req, res) => {
+            try {
+                res.send(SolutionManager.toJson());
             } catch (e: any) {
                 res.status(500).send(e.message);
             }

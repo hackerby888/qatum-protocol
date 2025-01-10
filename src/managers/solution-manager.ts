@@ -22,20 +22,20 @@ namespace SolutionManager {
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 
+    export function toJson() {
+        return {
+            solutionQueue: Object.fromEntries(solutionQueue),
+            solutionVerifyingQueue: Object.fromEntries(solutionVerifyingQueue),
+            solutionClusterVerifyingQueue: Object.fromEntries(
+                solutionClusterVerifyingQueue
+            ),
+            solutionVerifiedQueue: Object.fromEntries(solutionVerifiedQueue),
+        };
+    }
+
     export function saveToDisk() {
         try {
-            let moduleData = {
-                solutionQueue: Object.fromEntries(solutionQueue),
-                solutionVerifyingQueue: Object.fromEntries(
-                    solutionVerifyingQueue
-                ),
-                solutionClusterVerifyingQueue: Object.fromEntries(
-                    solutionClusterVerifyingQueue
-                ),
-                solutionVerifiedQueue: Object.fromEntries(
-                    solutionVerifiedQueue
-                ),
-            };
+            let moduleData = toJson();
 
             //add to solutionQueue again, verifying sols will be processed again
             moduleData.solutionQueue = {

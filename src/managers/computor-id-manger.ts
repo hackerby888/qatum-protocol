@@ -13,6 +13,7 @@ import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
 import fs from "fs";
 import { SolutionManager } from "./solution-manager";
+import qliFetch from "../utils/qli-apis/qli-fetch";
 interface TicksData {
     tickInfo: {
         tick: number;
@@ -23,7 +24,9 @@ interface TicksData {
 }
 export namespace ComputorIdManager {
     let miningConfig = {
-        diffToBalance: 1000, // hashrate difference to balance
+        diffHashRateToBalance: 1000, // hashrate difference between highest - lowest to balance
+        diffSolutionToBalance: 10, // solution difference between highest - lowest to balance
+        avgOverRate: 1.06, // when our ids below avg score, we should mine to target score = avgScore * avgOverRate
     };
 
     let currentEpoch: number = 0;
@@ -100,12 +103,23 @@ export namespace ComputorIdManager {
             return;
         }
         deleteAllWorkersForAllComputorId();
+        resetTargetForAllComputorId();
         fs.writeFileSync(
             `${DATA_PATH}/computorIdMapE${
                 epoch || ticksData.tickInfo.epoch
             }.json`,
             JSON.stringify(computorIdMap)
         );
+        fs.writeFileSync(
+            `${DATA_PATH}/miningConfig.json`,
+            JSON.stringify(miningConfig)
+        );
+    }
+
+    export function resetTargetForAllComputorId() {
+        for (let computorId in computorIdMap) {
+            computorIdMap[computorId].targetScore = undefined;
+        }
     }
 
     export function loadFromDisk(epoch?: number) {
@@ -129,6 +143,18 @@ export namespace ComputorIdManager {
                     "sys",
                     `computorIdMapE${candicateEpoch}.json not found, creating new one`
                 );
+            } else {
+                LOG("error", error.message);
+            }
+        }
+
+        try {
+            miningConfig = JSON.parse(
+                fs.readFileSync(`${DATA_PATH}/miningConfig.json`).toString()
+            );
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("sys", `miningConfig.json not found, creating new one`);
             } else {
                 LOG("error", error.message);
             }
@@ -211,11 +237,49 @@ export namespace ComputorIdManager {
         return computorId;
     }
 
-    export function getHighestHashrateActiveComputorId() {
+    export function getLowestScoreActiveComputorId(
+        needEnableFollow: boolean = false
+    ) {
+        let computorId = null;
+        let score = Infinity;
+        for (let id in computorIdMap) {
+            if (!computorIdMap[id].mining) continue;
+            if (needEnableFollow && !computorIdMap[id].followingAvgScore)
+                continue;
+            if (computorIdMap[id].bcscore < score) {
+                computorId = id;
+                score = computorIdMap[id].bcscore;
+            }
+        }
+        return computorId;
+    }
+
+    export function getHighestScoreActiveComputorId(
+        needEnableFollow: boolean = false
+    ) {
+        let computorId = null;
+        let score = 0;
+        for (let id in computorIdMap) {
+            if (!computorIdMap[id].mining) continue;
+            if (needEnableFollow && !computorIdMap[id].followingAvgScore)
+                continue;
+            if (computorIdMap[id].bcscore > score) {
+                computorId = id;
+                score = computorIdMap[id].bcscore;
+            }
+        }
+        return computorId;
+    }
+
+    export function getHighestHashrateActiveComputorId(
+        needEnableFollow: boolean = false
+    ) {
         let computorId = null;
         let hashrate = 0;
         for (let id in computorIdMap) {
             if (!computorIdMap[id].mining) continue;
+            if (needEnableFollow && !computorIdMap[id].followingAvgScore)
+                continue;
             if (computorIdMap[id].totalHashrate > hashrate) {
                 computorId = id;
                 hashrate = computorIdMap[id].totalHashrate;
@@ -272,24 +336,51 @@ export namespace ComputorIdManager {
         let lowestTotalHashrateIdEnabledFollowing =
             getLowestHashrateActiveComputorId(true) as string;
 
-        if (!lowestTotalHashrateIdEnabledFollowing) {
-            return {
-                canBalanceHashrate: true,
-            };
-        }
-
         if (isThereComputorIdFollowingTargetScore()) {
             return {
                 canBalanceHashrate: false,
             };
         }
 
+        //check highestscore - lowestscore > diffSolutionToBalance
+        let highestscoreId = getHighestScoreActiveComputorId();
+        let lowestscoreId = getLowestScoreActiveComputorId();
+
+        if (highestscoreId && lowestscoreId) {
+            if (
+                getComputorId(highestscoreId).bcscore -
+                    getComputorId(lowestscoreId).bcscore >
+                miningConfig.diffSolutionToBalance
+            ) {
+                getComputorId(lowestscoreId).targetScore =
+                    getComputorId(highestscoreId).bcscore;
+
+                for (let computorId in computorIdMap) {
+                    if (computorId === lowestscoreId) continue;
+
+                    moveAllWorkersFromComputorId(computorId, lowestscoreId);
+                }
+
+                syncNewComputorIdForSockets();
+
+                return {
+                    canBalanceHashrate: false,
+                };
+            }
+        }
+
+        //check follow avg score
+        if (!lowestTotalHashrateIdEnabledFollowing) {
+            return {
+                canBalanceHashrate: true,
+            };
+        }
         if (
             (getComputorId(lowestTotalHashrateIdEnabledFollowing)
                 .bcscore as number) < ApiData.avgScore
         ) {
             getComputorId(lowestTotalHashrateIdEnabledFollowing).targetScore =
-                ApiData.avgScore * 1.06;
+                ApiData.avgScore * miningConfig.avgOverRate;
 
             for (let computorId in computorIdMap) {
                 if (computorId === lowestTotalHashrateIdEnabledFollowing)
@@ -348,7 +439,7 @@ export namespace ComputorIdManager {
                 continue;
             }
 
-            if (maxHashrate - minHashrate < miningConfig.diffToBalance)
+            if (maxHashrate - minHashrate < miningConfig.diffHashRateToBalance)
                 continue;
 
             if (diff > 0) {
@@ -472,9 +563,17 @@ export namespace ComputorIdManager {
     }
 
     export async function fetchScoreV2(fromLastTick: boolean = false) {
+        let qliScores: {
+            scores: {
+                identity: string;
+                score: number;
+                adminScore: number;
+            }[];
+        };
         try {
             await syncTicksData();
             await syncEmptyTicks();
+            qliScores = await qliFetch(`https://api.qubic.li/Score/Get`);
         } catch (error: any) {
             LOG("error", `${error.message}, skip sync score`);
             return;
@@ -549,9 +648,15 @@ export namespace ComputorIdManager {
                         }
                     }
 
-                    //currently we are using lscore, ascore, bcscore as the same score
-                    computorIdMap[computorId].score = scores;
-                    computorIdMap[computorId].bcscore = scores;
+                    //we are using qli api to get score, because it's faster than fetching all transactions and check solutions
+                    computorIdMap[computorId].score =
+                        qliScores?.scores?.find(
+                            (s) => s.identity === computorId
+                        )?.score || 0;
+                    computorIdMap[computorId].bcscore =
+                        qliScores?.scores?.find(
+                            (s) => s.identity === computorId
+                        )?.adminScore || 0;
                     computorIdMap[computorId].lastUpdateScoreTime = Date.now();
                     computorIdMap[computorId].solutionsFetched =
                         solutionsFetched;

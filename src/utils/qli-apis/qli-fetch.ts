@@ -10,8 +10,10 @@ export default async function qliFetch(
     if (!ApiData.getToken() && !fixedToken) {
         try {
             await fetchToken({
-                userName: process.env.QLI_USERNAME as string,
-                password: process.env.QLI_PASSWORD as string,
+                userName:
+                    (process.env.QLI_USERNAME as string) || "guest@qubic.li",
+                password:
+                    (process.env.QLI_PASSWORD as string) || "guest13@Qubic.li",
             });
         } catch (error) {}
     }
