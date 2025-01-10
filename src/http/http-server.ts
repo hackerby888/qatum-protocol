@@ -104,7 +104,7 @@ namespace HttpServer {
                     res.status(400).send("wallet is required");
                     return;
                 }
-                res.send(WorkerManager.getWorkers(wallet, needActive));
+                res.send(WorkerManager.getWorkers(wallet, needActive, true));
             } catch (e: any) {
                 res.status(500).send(e.message);
             }

@@ -4,6 +4,8 @@ import os from "os";
 import Platform from "../platform/exit";
 import { Solution, SolutionResult } from "../types/type";
 import LOG from "../utils/logger";
+import { DATA_PATH } from "../consts/path";
+import fs from "fs";
 
 namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
@@ -13,14 +15,74 @@ namespace SolutionManager {
         string,
         Solution & {
             isSolution: boolean;
+            isWritten: boolean;
         }
     > = new Map();
 
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 
+    export function saveToDisk() {
+        try {
+            let moduleData = {
+                solutionQueue: Object.fromEntries(solutionQueue),
+                solutionVerifyingQueue: Object.fromEntries(
+                    solutionVerifyingQueue
+                ),
+                solutionClusterVerifyingQueue: Object.fromEntries(
+                    solutionClusterVerifyingQueue
+                ),
+                solutionVerifiedQueue: Object.fromEntries(
+                    solutionVerifiedQueue
+                ),
+            };
+
+            //add to solutionQueue again, verifying sols will be processed again
+            moduleData.solutionQueue = {
+                ...moduleData.solutionQueue,
+                ...moduleData.solutionVerifyingQueue,
+            };
+
+            moduleData.solutionVerifyingQueue = {};
+
+            fs.writeFileSync(
+                `${DATA_PATH}/solutions.json`,
+                JSON.stringify(moduleData)
+            );
+        } catch (e: any) {
+            LOG("error", `failed to save solutions to disk ${e}`);
+        }
+    }
+
+    export function loadFromDisk() {
+        try {
+            let moduleData = JSON.parse(
+                fs.readFileSync(`${DATA_PATH}/solutions.json`, "utf-8")
+            );
+
+            solutionQueue = new Map(Object.entries(moduleData.solutionQueue));
+            solutionVerifyingQueue = new Map(
+                Object.entries(moduleData.solutionVerifyingQueue)
+            );
+            solutionClusterVerifyingQueue = new Map(
+                Object.entries(moduleData.solutionClusterVerifyingQueue)
+            );
+            solutionVerifiedQueue = new Map(
+                Object.entries(moduleData.solutionVerifiedQueue)
+            );
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("sys", `solutions.json not found, creating new one`);
+            } else {
+                LOG("error", error.message);
+            }
+        }
+    }
+
     export function init() {
+        loadFromDisk();
         setInterval(() => {
+            if (!NodeManager.initedVerifyThread) return;
             if (solutionVerifyingQueue.size < threads * 2) {
                 let needToPush = Math.min(
                     solutionQueue.size,
@@ -51,6 +113,13 @@ namespace SolutionManager {
 
     export function clear() {
         solutionQueue.clear();
+    }
+
+    export function trySetWritten(md5Hash: string) {
+        let solution = solutionVerifiedQueue.get(md5Hash);
+        if (solution && isSolutionValid(md5Hash)) {
+            solution.isWritten = true;
+        }
     }
 
     export function remove(md5Hash: string) {
@@ -112,6 +181,7 @@ namespace SolutionManager {
         solutionVerifiedQueue.set(md5Hash, {
             ...solution,
             isSolution,
+            isWritten: false,
         });
         solutionVerifyingQueue.delete(md5Hash);
         solutionClusterVerifyingQueue.delete(md5Hash);
@@ -141,9 +211,12 @@ namespace SolutionManager {
         return solutionClusterVerifyingQueue.get(md5Hash);
     }
 
-    export function getVerifiedSolutionsResult() {
+    export function getVerifiedSolutionsResult(
+        needToBeWritten: boolean = false
+    ) {
         let solutions: SolutionResult[] = [];
         for (let [_, solution] of solutionVerifiedQueue) {
+            if (needToBeWritten && !solution.isWritten) continue;
             solutions.push({
                 md5Hash: solution.md5Hash,
                 isSolution: solution.isSolution,
@@ -155,6 +228,10 @@ namespace SolutionManager {
 
     export function isSolutionValid(md5Hash: string) {
         return solutionVerifiedQueue.get(md5Hash)?.isSolution || false;
+    }
+
+    export function isSolutionWritten(md5Hash: string) {
+        return solutionVerifiedQueue.get(md5Hash)?.isWritten || false;
     }
 
     export function print() {

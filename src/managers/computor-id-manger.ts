@@ -1,3 +1,4 @@
+import { md5 } from "hash-wasm";
 import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
 import Platform from "../platform/exit";
@@ -11,6 +12,7 @@ import ApiData from "../utils/qli-apis/global-data";
 import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
 import fs from "fs";
+import { SolutionManager } from "./solution-manager";
 interface TicksData {
     tickInfo: {
         tick: number;
@@ -30,6 +32,8 @@ export namespace ComputorIdManager {
 
     let emptyTicks: number[];
 
+    let lastSyncTick: number = 0;
+
     let computorIdMap: {
         //ID
         [key: string]: {
@@ -38,8 +42,7 @@ export namespace ComputorIdManager {
                 [key: string]: number | undefined;
             };
             totalHashrate: number;
-            lscore: number;
-            ascore: number;
+            score: number;
             bcscore: number;
             mining: boolean;
             followingAvgScore: boolean;
@@ -56,23 +59,7 @@ export namespace ComputorIdManager {
             };
             solutionsFetched: SolutionData[];
         };
-    } = {
-        PRKMZXJAOZERDCGLQUVESFWAHAABWIVWCPSLYBHWWFGADFZEONJATUBAMRQC: {
-            workers: {},
-            totalHashrate: 0,
-            lscore: 0,
-            ascore: 0,
-            bcscore: 0,
-            mining: true,
-            alias: "",
-            ip: "82.197.173.132",
-            followingAvgScore: false,
-            targetScore: undefined,
-            lastUpdateScoreTime: 0,
-            solutionsFetched: [],
-            submittedSolutions: {},
-        },
-    };
+    } = {};
 
     export async function writeSolution(
         computorId: string,
@@ -258,7 +245,7 @@ export namespace ComputorIdManager {
         for (let computorId in computorIdMap) {
             if (
                 !isNaN(computorIdMap[computorId].targetScore as number) &&
-                computorIdMap[computorId].lscore >=
+                computorIdMap[computorId].bcscore >=
                     (computorIdMap[computorId].targetScore as number)
             ) {
                 computorIdMap[computorId].targetScore = undefined;
@@ -284,7 +271,7 @@ export namespace ComputorIdManager {
 
         if (
             (getComputorId(lowestTotalHashrateIdEnabledFollowing)
-                .lscore as number) < ApiData.avgScore
+                .bcscore as number) < ApiData.avgScore
         ) {
             getComputorId(lowestTotalHashrateIdEnabledFollowing).targetScore =
                 ApiData.avgScore * 1.06;
@@ -435,8 +422,7 @@ export namespace ComputorIdManager {
 
     export async function resetComputorData() {
         for (let computorId in computorIdMap) {
-            computorIdMap[computorId].lscore = 0;
-            computorIdMap[computorId].ascore = 0;
+            computorIdMap[computorId].score = 0;
             computorIdMap[computorId].bcscore = 0;
             computorIdMap[computorId].lastUpdateScoreTime = 0;
             computorIdMap[computorId].solutionsFetched = [];
@@ -470,7 +456,7 @@ export namespace ComputorIdManager {
         }
     }
 
-    export async function fetchScoreV2() {
+    export async function fetchScoreV2(fromLastTick: boolean = false) {
         try {
             await syncTicksData();
             await syncEmptyTicks();
@@ -488,62 +474,75 @@ export namespace ComputorIdManager {
 
         currentEpoch = ticksData.tickInfo.epoch;
 
-        for (let computorId in computorIdMap) {
-            try {
-                let data = await qfetch(
-                    `https://rpc.qubic.org/v2/identities/${computorId}/transfers?startTick=${ticksData.tickInfo.initialTick}&endTick=${ticksData.tickInfo.tick}`
-                );
+        if (fromLastTick) {
+            //scan throw all ticks from last sync to current tick, get all solutions and update score ? does it faster than fetching all transactions of all computorId
+        } else {
+            for (let computorId in computorIdMap) {
+                try {
+                    let data = await qfetch(
+                        `https://rpc.qubic.org/v2/identities/${computorId}/transfers?startTick=${ticksData.tickInfo.initialTick}&endTick=${ticksData.tickInfo.tick}`
+                    );
 
-                let transactions = (await data.json()).transactions as {
-                    transactions: {
-                        moneyFlew: boolean;
-                        transaction: Transaction;
+                    let transactions = (await data.json()).transactions as {
+                        transactions: {
+                            moneyFlew: boolean;
+                            transaction: Transaction;
+                        }[];
                     }[];
-                }[];
 
-                let scores = 0;
-                let solutionsFetched: SolutionData[] = [];
-                for (let fatherTx of transactions) {
-                    for (let tx of fatherTx.transactions) {
-                        if (
-                            tx.transaction.inputType === 2 &&
-                            tx.transaction.sourceId === computorId &&
-                            !emptyTicks.includes(tx.transaction.tickNumber) &&
-                            tx.moneyFlew
-                        ) {
-                            let miningSeed = tx.transaction.inputHex.slice(
-                                0,
-                                64
-                            );
-                            let nonce = tx.transaction.inputHex.slice(64);
-
-                            solutionsFetched.push({
-                                miningSeed,
-                                nonce,
-                            });
-
+                    let scores = 0;
+                    let solutionsFetched: SolutionData[] = [];
+                    for (let fatherTx of transactions) {
+                        for (let tx of fatherTx.transactions) {
                             if (
-                                computorIdMap[computorId].submittedSolutions[
-                                    miningSeed + nonce
-                                ]
+                                tx.transaction.inputType === 2 &&
+                                tx.transaction.sourceId === computorId &&
+                                !emptyTicks.includes(
+                                    tx.transaction.tickNumber
+                                ) &&
+                                tx.moneyFlew
                             ) {
-                                computorIdMap[computorId].submittedSolutions[
-                                    miningSeed + nonce
-                                ].isWrittenToBC = true;
+                                let miningSeed = tx.transaction.inputHex.slice(
+                                    0,
+                                    64
+                                );
+                                let nonce = tx.transaction.inputHex.slice(64);
+
+                                solutionsFetched.push({
+                                    miningSeed,
+                                    nonce,
+                                });
+
+                                let md5Hash = await md5(
+                                    miningSeed + nonce + computorId
+                                );
+
+                                SolutionManager.trySetWritten(md5Hash);
+
+                                if (
+                                    computorIdMap[computorId]
+                                        .submittedSolutions[miningSeed + nonce]
+                                ) {
+                                    computorIdMap[
+                                        computorId
+                                    ].submittedSolutions[
+                                        miningSeed + nonce
+                                    ].isWrittenToBC = true;
+                                }
+                                scores++;
                             }
-                            scores++;
                         }
                     }
-                }
 
-                //currently we are using lscore, ascore, bcscore as the same score
-                computorIdMap[computorId].lscore = scores;
-                computorIdMap[computorId].ascore = scores;
-                computorIdMap[computorId].bcscore = scores;
-                computorIdMap[computorId].lastUpdateScoreTime = Date.now();
-                computorIdMap[computorId].solutionsFetched = solutionsFetched;
-            } catch (error: any) {
-                LOG("error", "[sync score] " + error.message);
+                    //currently we are using lscore, ascore, bcscore as the same score
+                    computorIdMap[computorId].score = scores;
+                    computorIdMap[computorId].bcscore = scores;
+                    computorIdMap[computorId].lastUpdateScoreTime = Date.now();
+                    computorIdMap[computorId].solutionsFetched =
+                        solutionsFetched;
+                } catch (error: any) {
+                    LOG("error", "[sync score] " + error.message);
+                }
             }
         }
     }

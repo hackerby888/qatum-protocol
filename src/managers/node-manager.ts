@@ -2,7 +2,7 @@ import bindings from "bindings";
 import LOG from "../utils/logger";
 import { SocketManager } from "./socket-manager";
 import QatumEvents from "../qatum/qatum-events";
-import { FIVE_SECONDS } from "../consts/time";
+import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
@@ -45,6 +45,8 @@ namespace NodeManager {
     let nodeIp = "";
 
     let solutionsToSubmitQueue: Solution[] = [];
+
+    export let initedVerifyThread: boolean = false;
 
     export function stopVerifyThread() {
         LOG("node", "stopping verify thread");
@@ -136,6 +138,9 @@ namespace NodeManager {
     export function initVerifyThread(threads: number) {
         LOG("node", "init verify thread with " + threads + " threads");
         addon.initVerifyThread(threads, handleOnVerifiedSolution);
+        setTimeout(() => {
+            initedVerifyThread = true;
+        }, ONE_SECOND * 5);
     }
 
     export async function init(ip: string, secretSeed: string) {

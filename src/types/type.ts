@@ -51,6 +51,7 @@ interface QWorkerApi {
     hashrate: number;
     solutions: number;
     solutionsVerified: number;
+    solutionsWritten: number;
     lastActive: number;
 }
 
