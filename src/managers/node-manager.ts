@@ -25,7 +25,7 @@ interface Addon {
     stopVerifyThread: () => void;
     initVerifyThread: (
         threads: number,
-        cb: ({ md5Hash, isSolution }: SolutionResult) => void
+        cb: ({ md5Hash, resultScore }: SolutionResult) => void
     ) => void;
     pushSolutionToVerifyQueue: (
         seed: string,
@@ -33,6 +33,7 @@ interface Addon {
         computorId: string,
         md5Hash: string
     ) => void;
+    checkScore: (score: number, threshold: number) => boolean;
 }
 let addon: Addon = bindings("q");
 
@@ -45,9 +46,27 @@ namespace NodeManager {
     let nodeIp = "";
     let gthreads = 0;
 
+    export let difficulty = {
+        pool: Number(process.env.INITIAL_POOL_DIFFICULTY),
+        net: Number(process.env.INITIAL_NET_DIFFICULTY),
+    };
+
     let solutionsToSubmitQueue: Solution[] = [];
 
     export let initedVerifyThread: boolean = false;
+
+    export function setDifficulty(newDiff: { pool?: number; net?: number }) {
+        difficulty = { ...difficulty, ...newDiff };
+
+        //broadcast
+        SocketManager.broadcast(
+            QatumEvents.getNewDifficultyPacket(difficulty.pool)
+        );
+    }
+
+    export function getDifficulty() {
+        return difficulty;
+    }
 
     export function stopVerifyThread() {
         LOG("node", "stopping verify thread");
@@ -115,20 +134,39 @@ namespace NodeManager {
     }
 
     export function handleOnVerifiedSolution(
-        { md5Hash, isSolution }: SolutionResult = {
+        solutionResult: SolutionResult = {
             md5Hash: "",
-            isSolution: false,
+            resultScore: -1,
         },
         fromCluster: boolean = false
     ) {
+        let { md5Hash, resultScore } = solutionResult;
         if (!md5Hash) return;
         if (md5Hash.length > 32) {
             md5Hash = md5Hash.slice(0, 32);
         }
-        LOG(
-            fromCluster ? "cluster" : "node",
-            "verifed solution: " + md5Hash + " isSolution " + isSolution
-        );
+        let isShare = addon.checkScore(resultScore, difficulty.pool);
+        let isSolution = addon.checkScore(resultScore, difficulty.net);
+
+        if (difficulty.pool === difficulty.net) {
+            //we dont use share in this case (solo mining)
+            isShare = false;
+            LOG(
+                fromCluster ? "cluster" : "node",
+                "verifed solution: " + md5Hash + " is solution " + isSolution
+            );
+        } else {
+            LOG(
+                fromCluster ? "cluster" : "node",
+                "verifed solution: " +
+                    md5Hash +
+                    " is share " +
+                    isShare +
+                    " is solution " +
+                    isSolution
+            );
+        }
+
         let theSolution =
             SolutionManager.getSolutionFromVerifying(md5Hash) ||
             SolutionManager.getSolutionFromClusterVerifying(md5Hash);
@@ -136,7 +174,11 @@ namespace NodeManager {
         if (theSolution) {
             if (isSolution) solutionsToSubmitQueue.push(theSolution);
 
-            SolutionManager.markAsVerified(md5Hash, isSolution);
+            SolutionManager.markAsVerified(md5Hash, {
+                isShare,
+                isSolution,
+                resultScore,
+            });
         }
     }
 

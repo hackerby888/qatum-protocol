@@ -11,7 +11,7 @@ namespace WorkerManager {
     let globalStats: {
         hashrate: number;
         hashrateList: number[];
-        solutions: number;
+        solutionsShare: number;
         solutionsVerified: number;
         solutionsWritten: number;
         workers: number;
@@ -20,7 +20,7 @@ namespace WorkerManager {
     } = {
         hashrate: 0,
         hashrateList: [],
-        solutions: 0,
+        solutionsShare: 0,
         solutionsVerified: 0,
         solutionsWritten: 0,
         workers: 0,
@@ -84,8 +84,6 @@ namespace WorkerManager {
         setInterval(() => {
             try {
                 let hashrate = 0;
-                let solutions = 0;
-                let solutionsVerified = 0;
                 let workers = 0;
                 let wallets = 0;
 
@@ -94,15 +92,17 @@ namespace WorkerManager {
                     value.forEach((worker) => {
                         worker.solutions.forEach((solution) => {
                             if (SolutionManager.isSolutionValid(solution)) {
-                                solutionsVerified++;
+                                globalStats.solutionsVerified++;
                                 if (
                                     SolutionManager.isSolutionWritten(solution)
                                 ) {
                                     globalStats.solutionsWritten++;
                                 }
                             }
+
+                            if (SolutionManager.isSolutionShare(solution))
+                                globalStats.solutionsShare++;
                         });
-                        solutions += worker.solutions.length;
                         if (!worker.isActive) return;
                         hasAtleastOneActiveWorker = true;
                         workers++;
@@ -119,8 +119,6 @@ namespace WorkerManager {
                     globalStats.hashrateList.shift();
                 }
                 globalStats.hashrateList.push(hashrate);
-                globalStats.solutions = solutions;
-                globalStats.solutionsVerified = solutionsVerified;
                 globalStats.workers = workers;
                 globalStats.wallets = wallets;
                 globalStats.lastUpdated = Date.now();
@@ -236,6 +234,7 @@ namespace WorkerManager {
     export function calculateAndInsertRewardPayments(epoch: number) {
         let reward: {
             [wallet: string]: {
+                solutionsShare: number;
                 solutionsVerified: number;
                 solutionsWritten: number;
                 epoch: number;
@@ -245,6 +244,7 @@ namespace WorkerManager {
         } = {};
         for (let [wallet, value] of workersMap) {
             reward[wallet] = {
+                solutionsShare: 0,
                 solutionsVerified: 0,
                 solutionsWritten: 0,
                 epoch,
@@ -259,6 +259,9 @@ namespace WorkerManager {
                             reward[wallet].solutionsWritten++;
                         }
                     }
+
+                    if (SolutionManager.isSolutionShare(solution))
+                        reward[wallet].solutionsShare++;
                 });
             });
         }

@@ -34,12 +34,14 @@ interface Solution {
 
 interface SolutionResult {
     md5Hash: string;
-    isSolution: boolean;
+    resultScore: number;
 }
 
-type SolutionState = Solution & {
+type SolutionNetState = Solution & {
+    resultScore: number;
     isSolution: boolean;
     isWritten: boolean;
+    isShare: boolean;
 };
 
 interface QWorker {
@@ -68,5 +70,5 @@ export {
     SolutionResult,
     QWorker,
     QWorkerApi,
-    SolutionState,
+    SolutionNetState,
 };

@@ -2,7 +2,7 @@ import net from "net";
 import LOG from "../utils/logger";
 import QatumEvents from "../qatum/qatum-events";
 import { SolutionManager } from "../managers/solution-manager";
-import { Solution, SolutionResult } from "../types/type";
+import { Solution, SolutionNetState } from "../types/type";
 import NodeManager from "../managers/node-manager";
 import os from "os";
 import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
@@ -30,7 +30,7 @@ namespace VerificationClusterServer {
                 let jsonObj = JSON.parse(data) as {
                     type: "get" | "set";
                     numberOfSolutions?: number;
-                    solutionsVerified?: SolutionResult[];
+                    solutionsVerified?: SolutionNetState[];
                 };
 
                 if (jsonObj.type === "get") {
@@ -46,7 +46,7 @@ namespace VerificationClusterServer {
                     );
                 } else if (jsonObj.type === "set") {
                     let solutions =
-                        jsonObj?.solutionsVerified as SolutionResult[];
+                        jsonObj?.solutionsVerified as SolutionNetState[];
                     solutions?.forEach((solution) => {
                         NodeManager.handleOnVerifiedSolution(solution, true);
                     });
@@ -141,7 +141,7 @@ namespace VerificationClusterServer {
             submitSolutionId = setInterval(() => {
                 if (SolutionManager.getVerifiedLength() > 0) {
                     let solutions =
-                        SolutionManager.getVerifiedSolutionsResult() as SolutionResult[];
+                        SolutionManager.getVerifiedSolutionsResult() as SolutionNetState[];
                     socket.write(
                         JSON.stringify({
                             type: "set",

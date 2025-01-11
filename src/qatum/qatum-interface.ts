@@ -43,6 +43,11 @@ namespace QatumInterface {
             result: boolean;
             error: string | null;
         }
+
+        export interface NewDifficultyPacket {
+            id: number;
+            difficulty: number;
+        }
     }
 }
 export default QatumInterface;

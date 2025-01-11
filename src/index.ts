@@ -21,8 +21,8 @@ function createDataPath() {
 }
 
 async function main() {
+    createDataPath();
     if (process.env.MODE === "main") {
-        createDataPath();
         WorkerManager.init();
         SolutionManager.init();
         if (process.env.MONGODB_URI) {

@@ -145,6 +145,32 @@ namespace HttpServer {
             }
         });
 
+        app.post("/difficulty", (req, res) => {
+            try {
+                let difficulty = req.body.difficulty as {
+                    pool?: number;
+                    net?: number;
+                };
+
+                if (!difficulty) {
+                    res.status(400).send("difficulty is required");
+                    return;
+                }
+
+                NodeManager.setDifficulty(difficulty);
+
+                res.status(200).send({
+                    isOk: true,
+                });
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
+        });
+
+        app.get("/difficulty", (req, res) => {
+            res.send(NodeManager.getDifficulty());
+        });
+
         app.listen(httpPort, () => {
             LOG("http", `http server listening on port ${httpPort}`);
         });

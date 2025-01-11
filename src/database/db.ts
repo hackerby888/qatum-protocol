@@ -1,6 +1,6 @@
 import { Collection, Db, MongoClient } from "mongodb";
 import LOG from "../utils/logger";
-import { Solution, SolutionState } from "../types/type";
+import { Solution, SolutionNetState } from "../types/type";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 
 namespace QatumDb {
@@ -38,7 +38,7 @@ namespace QatumDb {
         return solutionsCollection;
     }
 
-    export function insertSolution(solution: SolutionState) {
+    export function insertSolution(solution: SolutionNetState) {
         return solutionsCollection.insertOne({
             ...solution,
             insertedAt: Date.now(),

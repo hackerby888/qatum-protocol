@@ -438,11 +438,11 @@ struct ScoreFunction
         random2(&publicKey.m256i_u8[0], &nonce.m256i_u8[0], (unsigned char *)(cb._synapses.data), synapseInputCount * sizeof(cb._synapses.data[0]), cb._poolRandom2Buffer);
     }
 
-    bool isValidScore(unsigned int solutionScore)
+    static bool isValidScore(unsigned int solutionScore)
     {
         return (solutionScore >= 0 && solutionScore <= DATA_LENGTH);
     }
-    bool isGoodScore(unsigned int solutionScore, int threshold)
+    static bool isGoodScore(unsigned int solutionScore, int threshold)
     {
         return (threshold <= DATA_LENGTH) && (solutionScore >= (unsigned int)threshold);
     }

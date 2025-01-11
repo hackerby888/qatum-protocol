@@ -8,6 +8,7 @@ namespace QatumEvents {
         NEW_SEED: 3,
         SUBMIT: 4,
         REPORT_HASHRATE: 5,
+        NEW_DIFFICULTY: 6,
     };
 
     export function getAcceptedSubscribePacket(
@@ -47,6 +48,14 @@ namespace QatumEvents {
             id: eventsId.SUBMIT,
             result,
             error: error || null,
+        };
+        return JSON.stringify(packet) + DELIMITER;
+    }
+
+    export function getNewDifficultyPacket(difficulty: number): string {
+        let packet: QatumInterface.Server.NewDifficultyPacket = {
+            id: eventsId.NEW_DIFFICULTY,
+            difficulty,
         };
         return JSON.stringify(packet) + DELIMITER;
     }

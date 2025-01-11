@@ -52,6 +52,11 @@ namespace QatumServer {
                                 )
                             );
                             qatumSocket.write(
+                                QatumEvents.getNewDifficultyPacket(
+                                    NodeManager.difficulty.pool
+                                )
+                            );
+                            qatumSocket.write(
                                 QatumEvents.getNewComputorIdPacket(candicateId)
                             );
                             qatumSocket.write(

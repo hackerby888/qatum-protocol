@@ -2,7 +2,7 @@ import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
 import Platform from "../platform/exit";
-import { Solution, SolutionResult, SolutionState } from "../types/type";
+import { Solution, SolutionNetState } from "../types/type";
 import LOG from "../utils/logger";
 import { DATA_PATH } from "../consts/path";
 import fs from "fs";
@@ -12,7 +12,7 @@ namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
     let solutionVerifyingQueue: Map<string, Solution> = new Map();
     let solutionClusterVerifyingQueue: Map<string, Solution> = new Map();
-    let solutionVerifiedQueue: Map<string, SolutionState> = new Map();
+    let solutionVerifiedQueue: Map<string, SolutionNetState> = new Map();
 
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
@@ -178,21 +178,36 @@ namespace SolutionManager {
         solutionVerifiedQueue.clear();
     }
 
-    export function markAsVerified(md5Hash: string, isSolution: boolean) {
+    export function markAsVerified(
+        md5Hash: string,
+        {
+            isShare,
+            isSolution,
+            resultScore,
+        }: {
+            isShare: boolean;
+            isSolution: boolean;
+            resultScore: number;
+        }
+    ) {
         let solution =
             (solutionVerifyingQueue.get(md5Hash) as Solution) ||
             (solutionClusterVerifyingQueue.get(md5Hash) as Solution);
         solutionVerifiedQueue.set(md5Hash, {
             ...solution,
             isSolution,
+            isShare,
             isWritten: false,
+            resultScore,
         });
         solutionVerifyingQueue.delete(md5Hash);
         solutionClusterVerifyingQueue.delete(md5Hash);
 
-        QatumDb.insertSolution(
-            solutionVerifiedQueue.get(md5Hash) as SolutionState
-        );
+        //we only store solution
+        if (isSolution)
+            QatumDb.insertSolution(
+                solutionVerifiedQueue.get(md5Hash) as SolutionNetState
+            );
     }
 
     export function isEmpty() {
@@ -222,13 +237,10 @@ namespace SolutionManager {
     export function getVerifiedSolutionsResult(
         needToBeWritten: boolean = false
     ) {
-        let solutions: SolutionResult[] = [];
+        let solutions: SolutionNetState[] = [];
         for (let [_, solution] of solutionVerifiedQueue) {
             if (needToBeWritten && !solution.isWritten) continue;
-            solutions.push({
-                md5Hash: solution.md5Hash,
-                isSolution: solution.isSolution,
-            } as SolutionResult);
+            solutions.push(solution);
         }
 
         return solutions;
@@ -236,6 +248,10 @@ namespace SolutionManager {
 
     export function isSolutionValid(md5Hash: string) {
         return solutionVerifiedQueue.get(md5Hash)?.isSolution || false;
+    }
+
+    export function isSolutionShare(md5Hash: string) {
+        return solutionVerifiedQueue.get(md5Hash)?.isShare || false;
     }
 
     export function isSolutionWritten(md5Hash: string) {

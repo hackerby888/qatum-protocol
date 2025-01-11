@@ -18,12 +18,13 @@ using namespace Napi;
 Socket qsocket;
 string globalIp;
 
+typedef ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS> ScoreFunctionType;
 Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
 SolutionQueue *solutionQueue = nullptr;
 std::atomic_int64_t threadStartCount = 0;
 std::atomic_bool threadStillRunning = false;
-void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS> *score, unsigned long long threadId)
+void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunctionType *score, unsigned long long threadId)
 {
     score->initMemory();
     while (true)
@@ -49,9 +50,8 @@ void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGT
             score->initMiningData(seed256);
             unsigned int resultScore = (*score)(0, computorPublicKey, seed256, nonce256);
 
-            bool isSolution = score->isValidScore(resultScore) && score->isGoodScore(resultScore, SOLUTION_THRESHOLD_DEFAULT);
-            tsfn.BlockingCall([isSolution, md5Hash](Napi::Env env, Napi::Function jsCallback)
-                              {   HandleScope scope(env);   Object obj = Object::New(env); obj.Set("md5Hash", md5Hash); obj.Set("isSolution", isSolution);  jsCallback.Call({obj}); });
+            tsfn.BlockingCall([resultScore, md5Hash](Napi::Env env, Napi::Function jsCallback)
+                              {   HandleScope scope(env);   Object obj = Object::New(env); obj.Set("md5Hash", md5Hash); obj.Set("resultScore", resultScore);  jsCallback.Call({obj}); });
         }
 
         this_thread::sleep_for(chrono::milliseconds(100));
@@ -175,7 +175,7 @@ public:
 
         for (unsigned long long i = 0; i < numberOfthreads; i++)
         {
-            thread thread_1 = thread(VerifySolutionThread, solutionQueue, new ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS>(1), i);
+            thread thread_1 = thread(VerifySolutionThread, solutionQueue, new ScoreFunctionType(1), i);
             threadsPool.push_back(move(thread_1));
         }
         for (auto &thread_1 : threadsPool)
@@ -308,6 +308,14 @@ Napi::Value pushSolutionToVerifyQueue(const Napi::CallbackInfo &info)
     return info.Env().Undefined();
 }
 
+Napi::Value checkScore(const Napi::CallbackInfo &info)
+{
+    int score = info[0].As<Napi::Number>().Int32Value();
+    int threshold = info[1].As<Napi::Number>().Int32Value();
+
+    return Napi::Boolean::New(info.Env(), ScoreFunctionType::isValidScore(score) && ScoreFunctionType::isGoodScore(score, threshold));
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     exports.Set(Napi::String::New(env, "initSocket"),
@@ -330,6 +338,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
     exports.Set(Napi::String::New(env, "pushSolutionToVerifyQueue"),
                 Napi::Function::New(env, pushSolutionToVerifyQueue));
+
+    exports.Set(Napi::String::New(env, "checkScore"),
+                Napi::Function::New(env, checkScore));
 
     return exports;
 }
