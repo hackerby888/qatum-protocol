@@ -43,6 +43,7 @@ namespace NodeManager {
     //this seed is used to submit solution
     let currentSecretSeed = "";
     let nodeIp = "";
+    let gthreads = 0;
 
     let solutionsToSubmitQueue: Solution[] = [];
 
@@ -114,9 +115,13 @@ namespace NodeManager {
     }
 
     export function handleOnVerifiedSolution(
-        { md5Hash, isSolution }: SolutionResult,
+        { md5Hash, isSolution }: SolutionResult = {
+            md5Hash: "",
+            isSolution: false,
+        },
         fromCluster: boolean = false
     ) {
+        if (!md5Hash) return;
         if (md5Hash.length > 32) {
             md5Hash = md5Hash.slice(0, 32);
         }
@@ -136,11 +141,18 @@ namespace NodeManager {
     }
 
     export function initVerifyThread(threads: number) {
+        gthreads = threads;
         LOG("node", "init verify thread with " + threads + " threads");
         addon.initVerifyThread(threads, handleOnVerifiedSolution);
         setTimeout(() => {
             initedVerifyThread = true;
         }, ONE_SECOND * 5);
+    }
+
+    export function restartVerifyThread() {
+        stopVerifyThread();
+        initedVerifyThread = false;
+        initVerifyThread(gthreads);
     }
 
     export async function init(ip: string, secretSeed: string) {

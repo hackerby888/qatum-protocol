@@ -4,6 +4,7 @@ import LOG from "../utils/logger";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 import WorkerManager from "../managers/worker-manager";
 import { SolutionManager } from "../managers/solution-manager";
+import NodeManager from "../managers/node-manager";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -13,7 +14,7 @@ namespace HttpServer {
         app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
         app.get("/", (req, res) => {
-            res.send("Hello World!");
+            res.send("Hello Qubic!");
         });
 
         app.get("/mining-config", (req, res) => {
@@ -32,7 +33,9 @@ namespace HttpServer {
                     avgOverRate: number;
                 } = req.body as any;
                 ComputorIdManager.setMiningConfig(miningConfig);
-                res.status(200).send();
+                res.status(200).send({
+                    isOk: true,
+                });
             } catch (e: any) {
                 res.status(500).send(e.message);
             }
@@ -59,7 +62,9 @@ namespace HttpServer {
                     followingAvgScore?: boolean;
                 } = req.body.settings || {};
                 ComputorIdManager.addComputorId(computorId, settings);
-                res.status(200).send("");
+                res.status(200).send({
+                    isOk: true,
+                });
             } catch (e: any) {
                 res.status(500).send(e.message);
             }
@@ -78,7 +83,9 @@ namespace HttpServer {
                     followingAvgScore?: boolean;
                 } = req.body.settings || {};
                 ComputorIdManager.updateComputorId(computorId, settings);
-                res.status(200).send("");
+                res.status(200).send({
+                    isOk: true,
+                });
             } catch (e: any) {
                 res.status(500).send(e.message);
             }
@@ -93,7 +100,9 @@ namespace HttpServer {
                 }
                 ComputorIdManager.removeComputorId(computorId);
                 ComputorIdManager.syncNewComputorIdForSockets();
-                res.status(200).send("");
+                res.status(200).send({
+                    isOk: true,
+                });
             } catch (e: any) {
                 res.status(500).send(e.message);
             }
@@ -123,6 +132,17 @@ namespace HttpServer {
 
         app.get("/globalStats", (req, res) => {
             res.send(WorkerManager.getGlobalStats());
+        });
+
+        app.get("/restartThread", (req, res) => {
+            try {
+                NodeManager.restartVerifyThread();
+                res.status(200).send({
+                    isOk: true,
+                });
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
         });
 
         app.listen(httpPort, () => {

@@ -20,7 +20,9 @@ string globalIp;
 
 Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
-SolutionQueue *solutionQueue;
+SolutionQueue *solutionQueue = nullptr;
+std::atomic_int64_t threadStartCount = 0;
+std::atomic_bool threadStillRunning = false;
 void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS> *score, unsigned long long threadId)
 {
     score->initMemory();
@@ -164,9 +166,12 @@ public:
 
     void Execute() override
     {
-
+        threadStillRunning = true;
+        log("node", "verify thread started");
         vector<thread> threadsPool;
-        solutionQueue = new SolutionQueue();
+
+        if (threadStartCount == 0)
+            solutionQueue = new SolutionQueue();
 
         for (unsigned long long i = 0; i < numberOfthreads; i++)
         {
@@ -179,7 +184,10 @@ public:
         }
 
         tsfn.Release();
-        delete solutionQueue;
+        log("node", "verify thread stopped");
+        threadStillRunning = false;
+        threadStartCount++;
+        stop_thread = false;
     }
 
     void OnOK() override
@@ -240,6 +248,11 @@ Napi::Value initVerifyThread(const Napi::CallbackInfo &info)
 {
     Number num = info[0].As<Number>();
     Function cb = info[1].As<Function>();
+
+    while (threadStillRunning)
+    {
+        this_thread::sleep_for(chrono::milliseconds(500));
+    }
 
     VerifySolutionWorker *wk = new VerifySolutionWorker(num, cb);
     wk->Queue();
