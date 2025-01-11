@@ -271,10 +271,19 @@ namespace WorkerManager {
     }
 
     export function clearSolutionsForAllWallets() {
-        workersMap.forEach((value) => {
+        workersMap.forEach((value, key) => {
+            //delete wallet if no worker is active
+            let hasAtleastOneActiveWorker = false;
             value.forEach((worker) => {
+                if (worker.isActive) {
+                    hasAtleastOneActiveWorker = true;
+                }
                 worker.solutions = [];
             });
+
+            if (!hasAtleastOneActiveWorker) {
+                workersMap.delete(key);
+            }
         });
     }
 }
