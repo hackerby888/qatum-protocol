@@ -99,11 +99,14 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function saveToDisk(epoch?: number) {
+    export function saveToDisk(
+        epoch?: number,
+        needToDeleteWorkers: boolean = true
+    ) {
         if (!epoch && !ticksData?.tickInfo?.epoch) {
             return;
         }
-        deleteAllWorkersForAllComputorId();
+        if (needToDeleteWorkers) deleteAllWorkersForAllComputorId();
         resetTargetForAllComputorId();
         fs.writeFileSync(
             `${DATA_PATH}/computorIdMapE${
@@ -586,6 +589,7 @@ export namespace ComputorIdManager {
             LOG("sys", `new epoch ${ticksData.tickInfo.epoch}`);
             WorkerManager.calculateAndInsertRewardPayments(currentEpoch);
             WorkerManager.clearSolutionsForAllWallets();
+            ComputorIdManager.saveToDisk(currentEpoch, false);
             await resetComputorData();
         }
 
