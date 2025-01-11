@@ -8,7 +8,9 @@ import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
 import { Solution, SolutionData, SolutionResult } from "../types/type";
+import fs from "fs";
 import os from "os";
+import { DATA_PATH } from "../consts/path";
 
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
@@ -54,6 +56,32 @@ namespace NodeManager {
     let solutionsToSubmitQueue: Solution[] = [];
 
     export let initedVerifyThread: boolean = false;
+
+    export function saveToDisk() {
+        try {
+            fs.writeFileSync(
+                `${DATA_PATH}/difficulty.json`,
+                JSON.stringify(difficulty)
+            );
+        } catch (error) {
+            LOG("error", `failed to save difficulty to disk ${error}`);
+        }
+    }
+
+    export function loadFromDisk() {
+        try {
+            let moduleData = JSON.parse(
+                fs.readFileSync(`${DATA_PATH}/difficulty.json`, "utf-8")
+            );
+            difficulty = moduleData;
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("sys", `difficulty.json not found, creating new one`);
+            } else {
+                LOG("error", error.message);
+            }
+        }
+    }
 
     export function setDifficulty(newDiff: { pool?: number; net?: number }) {
         difficulty = { ...difficulty, ...newDiff };
@@ -199,6 +227,7 @@ namespace NodeManager {
 
     export async function init(ip: string, secretSeed: string) {
         LOG("node", "init node manager");
+        loadFromDisk();
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
         initLogger();

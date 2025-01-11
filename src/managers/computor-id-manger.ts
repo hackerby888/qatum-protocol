@@ -590,6 +590,8 @@ export namespace ComputorIdManager {
             WorkerManager.calculateAndInsertRewardPayments(currentEpoch);
             WorkerManager.clearSolutionsForAllWallets();
             ComputorIdManager.saveToDisk(currentEpoch, false);
+            SolutionManager.saveToDisk(currentEpoch);
+            SolutionManager.clearAllQueue();
             await resetComputorData();
         }
 

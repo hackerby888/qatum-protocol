@@ -7,6 +7,7 @@ import LOG from "../utils/logger";
 import { DATA_PATH } from "../consts/path";
 import fs from "fs";
 import QatumDb from "../database/db";
+import { ComputorIdManager } from "./computor-id-manger";
 
 namespace SolutionManager {
     let solutionQueue: Map<string, Solution> = new Map();
@@ -28,7 +29,7 @@ namespace SolutionManager {
         };
     }
 
-    export function saveToDisk() {
+    export function saveToDisk(epoch?: number) {
         try {
             let moduleData = toJson();
 
@@ -41,7 +42,9 @@ namespace SolutionManager {
             moduleData.solutionVerifyingQueue = {};
 
             fs.writeFileSync(
-                `${DATA_PATH}/solutions-${process.env.MODE}.json`,
+                `${DATA_PATH}/solutions-${process.env.MODE}-${
+                    epoch || ComputorIdManager.ticksData.tickInfo.epoch
+                }.json`,
                 JSON.stringify(moduleData)
             );
         } catch (e: any) {
@@ -49,11 +52,13 @@ namespace SolutionManager {
         }
     }
 
-    export function loadFromDisk() {
+    export function loadFromDisk(epoch?: number) {
         try {
             let moduleData = JSON.parse(
                 fs.readFileSync(
-                    `${DATA_PATH}/solutions-${process.env.MODE}.json`,
+                    `${DATA_PATH}/solutions-${process.env.MODE}-${
+                        epoch || ComputorIdManager.ticksData.tickInfo.epoch
+                    }.json`,
                     "utf-8"
                 )
             );
@@ -175,6 +180,13 @@ namespace SolutionManager {
     }
 
     export function clearVerifiedSolutions() {
+        solutionVerifiedQueue.clear();
+    }
+
+    export function clearAllQueue() {
+        solutionQueue.clear();
+        solutionVerifyingQueue.clear();
+        solutionClusterVerifyingQueue.clear();
         solutionVerifiedQueue.clear();
     }
 

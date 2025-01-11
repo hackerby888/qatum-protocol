@@ -6,6 +6,7 @@ import WorkerManager from "../managers/worker-manager";
 namespace Platform {
     export function exit(code: number = 0): void {
         NodeManager.stopVerifyThread();
+        NodeManager.saveToDisk();
         ComputorIdManager.saveToDisk();
         WorkerManager.saveToDisk();
         SolutionManager.saveToDisk();
