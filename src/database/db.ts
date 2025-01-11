@@ -20,7 +20,6 @@ namespace QatumDb {
         QatumDb.setDb(dbClient.db("qatum") as Db);
 
         getSolutionsCollection();
-        LOG("sys", "connected to database");
     }
 
     export function getDb() {
@@ -32,6 +31,7 @@ namespace QatumDb {
     }
 
     export function getSolutionsCollection() {
+        if (!database) return;
         if (!solutionsCollection) {
             solutionsCollection = database.collection("solutions");
         }
@@ -39,6 +39,7 @@ namespace QatumDb {
     }
 
     export function insertSolution(solution: SolutionNetState) {
+        if (!database) return;
         return solutionsCollection.insertOne({
             ...solution,
             insertedAt: Date.now(),
@@ -47,6 +48,7 @@ namespace QatumDb {
     }
 
     export function setIsWrittenSolution(md5Hash: string) {
+        if (!database) return;
         solutionsCollection.updateOne(
             { md5Hash },
             { $set: { isWritten: true } }
@@ -54,6 +56,7 @@ namespace QatumDb {
     }
 
     export function insertRewardPayments(rewardPayments: any) {
+        if (!database) return;
         return database.collection("payments").insertMany(rewardPayments);
     }
 }

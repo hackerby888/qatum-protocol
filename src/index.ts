@@ -23,8 +23,6 @@ function createDataPath() {
 async function main() {
     createDataPath();
     if (process.env.MODE === "main") {
-        WorkerManager.init();
-        SolutionManager.init();
         if (process.env.MONGODB_URI) {
             await QatumDb.connectDB();
         } else {
@@ -34,6 +32,8 @@ async function main() {
             );
         }
         await ComputorIdManager.init();
+        WorkerManager.init();
+        SolutionManager.init();
         await NodeManager.init(
             process.env.NODE_IP as string,
             process.env.SECRET_SEED as string
@@ -48,7 +48,7 @@ async function main() {
             LOG("error", "CLUSTER_MAIN_SERVER is not defined");
             Platform.exit(1);
         }
-
+        NodeManager.initLogger();
         VerificationClusterServer.connectToServer(
             process.env.CLUSTER_MAIN_SERVER as string
         );
