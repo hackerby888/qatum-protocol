@@ -2,15 +2,15 @@
 
 Qatum is the stratum-like protocol for qubic.
 
-> The client and backend implementation for the Qatum protocol are included in this repository.
+> The backend implementation for the Qatum protocol are included in this repository.
+> The client implementation can be found here https://github.com/hackerby888/Qiner.
 
 ## Requirement
 
 -   Nodejs
--   GCC
+-   GCC or Clang
 -   Python >= 3.12
 -   AVX2 or AVX512
--   At least 2 cores server
 
 ## Run
 
@@ -24,6 +24,9 @@ Qatum is the stratum-like protocol for qubic.
 Create `.env` file on project's root folder and edit following variables
 
 ```ts
+#optional
+MONGODB_URI = "mongodb://localhost:27017/"
+
 #main or verify
 MODE = "main"
 MAX_VERIFICATION_THREADS = 1
@@ -31,7 +34,6 @@ HTTP_PORT = 3000
 QATUM_PORT = 3001
 CLUSTER_PORT = 3002
 NODE_IP = "1.1.1.1"
- #your qubic secret seed used to submit solution
 SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 #only set when MODE = "verify"
@@ -40,7 +42,7 @@ CLUSTER_MAIN_SERVER = "host:port"
 
 ## Documentation
 
-![alt text](https://imgur.com/mQLY3W7.png)
+![alt text](https://imgur.com/bT8K9Es.png)
 
 This software can be ran as two modes
 
@@ -56,6 +58,7 @@ This software can be ran as two modes
         NEW_SEED: 3,
         SUBMIT: 4,
         REPORT_HASHRATE: 5,
+        NEW_DIFFICULTY: 6
 };
 ```
 
@@ -109,6 +112,11 @@ export namespace Server {
         id: number;
         result: boolean;
         error: string | null;
+    }
+
+    export interface NewDifficultyPacket {
+        id: number;
+        difficulty: number;
     }
 }
 ```
