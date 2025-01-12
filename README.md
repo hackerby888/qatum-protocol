@@ -3,6 +3,7 @@
 Qatum is the stratum-like protocol for qubic.
 
 > The backend implementation for the Qatum protocol are included in this repository.
+
 > The client implementation can be found here https://github.com/hackerby888/Qiner.
 
 ## Requirement
