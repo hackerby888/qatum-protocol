@@ -172,6 +172,9 @@ namespace WorkerManager {
                 result.push({
                     ...worker,
                     solutions: worker.solutions.length,
+                    solutionsShare: worker.solutions.filter((solution) =>
+                        SolutionManager.isSolutionShare(solution)
+                    ).length,
                     solutionsVerified: worker.solutions.filter((solution) =>
                         SolutionManager.isSolutionValid(solution)
                     ).length,

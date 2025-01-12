@@ -59,6 +59,7 @@ interface QWorkerApi {
     solutions: number;
     solutionsVerified: number;
     solutionsWritten: number;
+    solutionsShare: number;
     lastActive: number;
 }
 

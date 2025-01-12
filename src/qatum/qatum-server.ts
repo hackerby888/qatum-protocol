@@ -24,49 +24,60 @@ namespace QatumServer {
                 switch (jsonObj.id) {
                     case QatumEvents.eventsId.SUBSCRIBE:
                         {
-                            let jsonObjTyped =
-                                jsonObj as QatumInterface.Client.SubscribePacket;
+                            try {
+                                let jsonObjTyped =
+                                    jsonObj as QatumInterface.Client.SubscribePacket;
 
-                            qatumSocket.wallet = jsonObjTyped.wallet;
-                            qatumSocket.worker = jsonObjTyped.worker;
-                            let candicateId =
-                                ComputorIdManager.getLowestHashrateActiveComputorId();
-                            if (!candicateId) {
+                                qatumSocket.wallet = jsonObjTyped.wallet;
+                                qatumSocket.worker = jsonObjTyped.worker;
+                                let candicateId =
+                                    ComputorIdManager.getLowestHashrateActiveComputorId();
+                                if (!candicateId) {
+                                    qatumSocket.write(
+                                        QatumEvents.getAcceptedSubscribePacket(
+                                            false,
+                                            "No computor id available"
+                                        )
+                                    );
+                                    return;
+                                }
+                                WorkerManager.createWorker(
+                                    qatumSocket.wallet,
+                                    qatumSocket.randomUUID,
+                                    qatumSocket.worker
+                                );
+                                qatumSocket.write(
+                                    QatumEvents.getAcceptedSubscribePacket(
+                                        true,
+                                        null
+                                    )
+                                );
+                                qatumSocket.write(
+                                    QatumEvents.getNewDifficultyPacket(
+                                        NodeManager.difficulty.pool
+                                    )
+                                );
+                                qatumSocket.write(
+                                    QatumEvents.getNewComputorIdPacket(
+                                        candicateId
+                                    )
+                                );
+                                qatumSocket.write(
+                                    QatumEvents.getNewSeedPacket(
+                                        NodeManager.getMiningSeed()
+                                    )
+                                );
+                                qatumSocket.computorId = candicateId;
+                                qatumSocket.isConnected = true;
+                                SocketManager.addSocket(qatumSocket);
+                            } catch (e: any) {
                                 qatumSocket.write(
                                     QatumEvents.getAcceptedSubscribePacket(
                                         false,
-                                        "No computor id available"
+                                        e.message
                                     )
                                 );
-                                return;
                             }
-                            WorkerManager.createWorker(
-                                qatumSocket.wallet,
-                                qatumSocket.randomUUID,
-                                qatumSocket.worker
-                            );
-                            qatumSocket.write(
-                                QatumEvents.getAcceptedSubscribePacket(
-                                    true,
-                                    null
-                                )
-                            );
-                            qatumSocket.write(
-                                QatumEvents.getNewDifficultyPacket(
-                                    NodeManager.difficulty.pool
-                                )
-                            );
-                            qatumSocket.write(
-                                QatumEvents.getNewComputorIdPacket(candicateId)
-                            );
-                            qatumSocket.write(
-                                QatumEvents.getNewSeedPacket(
-                                    NodeManager.getMiningSeed()
-                                )
-                            );
-                            qatumSocket.computorId = candicateId;
-                            qatumSocket.isConnected = true;
-                            SocketManager.addSocket(qatumSocket);
                         }
                         break;
                     case QatumEvents.eventsId.SUBMIT:
@@ -118,20 +129,22 @@ namespace QatumServer {
                         break;
                     case QatumEvents.eventsId.REPORT_HASHRATE:
                         {
-                            let jsonObjTyped =
-                                jsonObj as QatumInterface.Client.ReportHashratePacket;
+                            try {
+                                let jsonObjTyped =
+                                    jsonObj as QatumInterface.Client.ReportHashratePacket;
 
-                            ComputorIdManager.updateHashrate(
-                                jsonObjTyped.computorId ||
-                                    qatumSocket.computorId,
-                                qatumSocket.randomUUID,
-                                jsonObjTyped.hashrate
-                            );
-                            WorkerManager.updateHashrate(
-                                qatumSocket.wallet,
-                                qatumSocket.randomUUID,
-                                jsonObjTyped.hashrate
-                            );
+                                ComputorIdManager.updateHashrate(
+                                    jsonObjTyped.computorId ||
+                                        qatumSocket.computorId,
+                                    qatumSocket.randomUUID,
+                                    jsonObjTyped.hashrate
+                                );
+                                WorkerManager.updateHashrate(
+                                    qatumSocket.wallet,
+                                    qatumSocket.randomUUID,
+                                    jsonObjTyped.hashrate
+                                );
+                            } catch (e: any) {}
                         }
                         break;
                     default:
@@ -162,6 +175,14 @@ namespace QatumServer {
                     );
                     dindex = buffer.indexOf(QatumEvents.DELIMITER);
                 }
+            });
+
+            socket.on("error", (err) => {
+                if (err.message === "read ECONNRESET") {
+                    return;
+                }
+
+                LOG("error", "[qatum] " + err.message);
             });
 
             socket.on("close", () => {

@@ -233,7 +233,7 @@ export namespace ComputorIdManager {
             if (!computorIdMap[id].mining) continue;
             if (needEnableFollow && !computorIdMap[id].followingAvgScore)
                 continue;
-            if (computorIdMap[id].totalHashrate < hashrate) {
+            if (computorIdMap[id].totalHashrate <= hashrate) {
                 computorId = id;
                 hashrate = computorIdMap[id].totalHashrate;
             }
@@ -250,7 +250,7 @@ export namespace ComputorIdManager {
             if (!computorIdMap[id].mining) continue;
             if (needEnableFollow && !computorIdMap[id].followingAvgScore)
                 continue;
-            if (computorIdMap[id].bcscore < score) {
+            if (computorIdMap[id].bcscore <= score) {
                 computorId = id;
                 score = computorIdMap[id].bcscore;
             }
@@ -267,7 +267,7 @@ export namespace ComputorIdManager {
             if (!computorIdMap[id].mining) continue;
             if (needEnableFollow && !computorIdMap[id].followingAvgScore)
                 continue;
-            if (computorIdMap[id].bcscore > score) {
+            if (computorIdMap[id].bcscore >= score) {
                 computorId = id;
                 score = computorIdMap[id].bcscore;
             }
@@ -284,7 +284,7 @@ export namespace ComputorIdManager {
             if (!computorIdMap[id].mining) continue;
             if (needEnableFollow && !computorIdMap[id].followingAvgScore)
                 continue;
-            if (computorIdMap[id].totalHashrate > hashrate) {
+            if (computorIdMap[id].totalHashrate >= hashrate) {
                 computorId = id;
                 hashrate = computorIdMap[id].totalHashrate;
             }
