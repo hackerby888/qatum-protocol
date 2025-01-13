@@ -94,6 +94,13 @@ namespace QatumServer {
                                         "invalid submit packet (wrong length)"
                                     );
                                 }
+
+                                if (
+                                    jsonObjTyped.seed.toLocaleLowerCase() !==
+                                    NodeManager.getMiningSeed().toLocaleLowerCase()
+                                ) {
+                                    throw new Error("invalid seed");
+                                }
                                 let md5Hash = await SolutionManager.push(
                                     jsonObjTyped.seed,
                                     jsonObjTyped.nonce,
