@@ -24,7 +24,7 @@ Qatum is the stratum-like protocol for qubic.
 
 Create `.env` file on project's root folder and edit following variables
 
-```ts
+```
 # database (optional)
 MONGODB_URI = "mongodb://localhost:27017/"
 
