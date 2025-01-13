@@ -25,10 +25,10 @@ Qatum is the stratum-like protocol for qubic.
 Create `.env` file on project's root folder and edit following variables
 
 ```ts
-#optional
+# database (optional)
 MONGODB_URI = "mongodb://localhost:27017/"
 
-#main or verify
+# main or verify
 MODE = "main"
 MAX_VERIFICATION_THREADS = 1
 HTTP_PORT = 3000
@@ -37,7 +37,13 @@ CLUSTER_PORT = 3002
 NODE_IP = "1.1.1.1"
 SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-#only set when MODE = "verify"
+# POOL = NET --> Solo Mode
+# POOL < NET --> Share Mode
+# NET_DIFFICULTY need to be same as current qubic solution threshold
+INITIAL_POOL_DIFFICULTY = 80
+INITIAL_NET_DIFFICULTY = 80
+
+# only set when MODE = "verify"
 CLUSTER_MAIN_SERVER = "host:port"
 ```
 
