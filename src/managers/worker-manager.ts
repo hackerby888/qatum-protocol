@@ -3,6 +3,7 @@ import { ONE_DAY, THREE_MINUTES } from "../consts/time";
 import QatumDb from "../database/db";
 import { QWorker, QWorkerApi, Solution } from "../types/type";
 import LOG from "../utils/logger";
+import { ComputorIdManager } from "./computor-id-manger";
 import { SolutionManager } from "./solution-manager";
 import fs from "fs";
 namespace WorkerManager {
@@ -38,9 +39,14 @@ namespace WorkerManager {
         return globalStats;
     }
 
-    export function saveToDisk() {
+    export function saveToDisk(
+        epoch?: number,
+        needToSetInactive: boolean = true
+    ) {
+        let candicateEpoch =
+            epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch;
         try {
-            setInactiveAll();
+            if (needToSetInactive) setInactiveAll();
             let moduleData: any = {
                 workersMap: {},
                 globalStats,
@@ -53,18 +59,26 @@ namespace WorkerManager {
             moduleData.globalStats = globalStats;
 
             fs.writeFileSync(
-                `${DATA_PATH}/workers.json`,
+                `${DATA_PATH}/workers-${candicateEpoch}.json`,
                 JSON.stringify(moduleData)
             );
         } catch (error: any) {
-            LOG("error", `failed to save workers to disk ${error}`);
+            LOG(
+                "error",
+                `failed to save workers-${candicateEpoch} to disk ${error}`
+            );
         }
     }
 
-    export function loadFromDisk() {
+    export function loadFromDisk(epoch?: number) {
+        let candicateEpoch =
+            epoch || ComputorIdManager.ticksData.tickInfo.epoch;
         try {
             let moduleData = JSON.parse(
-                fs.readFileSync(`${DATA_PATH}/workers.json`, "utf-8")
+                fs.readFileSync(
+                    `${DATA_PATH}/workers-${candicateEpoch}.json`,
+                    "utf-8"
+                )
             );
             Object.entries(moduleData.workersMap).forEach(([key, value]) => {
                 // @ts-ignore
@@ -73,7 +87,10 @@ namespace WorkerManager {
             globalStats = moduleData.globalStats;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `workers.json not found, creating new one`);
+                LOG(
+                    "sys",
+                    `workers-${candicateEpoch}.json not found, creating new one`
+                );
             } else {
                 LOG("error", error.message);
             }

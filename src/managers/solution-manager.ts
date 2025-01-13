@@ -43,7 +43,7 @@ namespace SolutionManager {
 
             fs.writeFileSync(
                 `${DATA_PATH}/solutions-${process.env.MODE}-${
-                    epoch || ComputorIdManager.ticksData.tickInfo.epoch
+                    epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch
                 }.json`,
                 JSON.stringify(moduleData)
             );

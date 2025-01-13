@@ -92,7 +92,9 @@ export namespace ComputorIdManager {
             };
     }
 
-    export function deleteAllWorkersForAllComputorId() {
+    export function deleteAllWorkersForAllComputorId(cloneComputorIdMap: any) {
+        //@ts-ignore
+        let computorIdMap = cloneComputorIdMap || getComputorIds();
         for (let computorId in computorIdMap) {
             computorIdMap[computorId].workers = {};
             computorIdMap[computorId].totalHashrate = 0;
@@ -103,16 +105,18 @@ export namespace ComputorIdManager {
         epoch?: number,
         needToDeleteWorkers: boolean = true
     ) {
-        if (!epoch && !ticksData?.tickInfo?.epoch) {
-            return;
+        let clone = structuredClone(computorIdMap);
+        deleteAllWorkersForAllComputorId(clone);
+
+        if (needToDeleteWorkers) {
+            deleteAllWorkersForAllComputorId(computorIdMap);
         }
-        if (needToDeleteWorkers) deleteAllWorkersForAllComputorId();
         resetTargetForAllComputorId();
         fs.writeFileSync(
-            `${DATA_PATH}/computorIdMapE${
-                epoch || ticksData.tickInfo.epoch
+            `${DATA_PATH}/computorIdMap-${
+                epoch || ticksData?.tickInfo?.epoch
             }.json`,
-            JSON.stringify(computorIdMap)
+            JSON.stringify(clone)
         );
         fs.writeFileSync(
             `${DATA_PATH}/miningConfig.json`,
@@ -137,7 +141,7 @@ export namespace ComputorIdManager {
             computorIdMap = JSON.parse(
                 fs
                     .readFileSync(
-                        `${DATA_PATH}/computorIdMapE${candicateEpoch}.json`
+                        `${DATA_PATH}/computorIdMap-${candicateEpoch}.json`
                     )
                     .toString()
             );
@@ -145,7 +149,7 @@ export namespace ComputorIdManager {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `computorIdMapE${candicateEpoch}.json not found, creating new one`
+                    `computorIdMap-${candicateEpoch}.json not found, creating new one`
                 );
             } else {
                 LOG("error", error.message);
@@ -588,6 +592,7 @@ export namespace ComputorIdManager {
             //new epoch
             LOG("sys", `new epoch ${ticksData.tickInfo.epoch}`);
             WorkerManager.calculateAndInsertRewardPayments(currentEpoch);
+            WorkerManager.saveToDisk(currentEpoch, false);
             WorkerManager.clearSolutionsForAllWallets();
             ComputorIdManager.saveToDisk(currentEpoch, false);
             SolutionManager.saveToDisk(currentEpoch);
