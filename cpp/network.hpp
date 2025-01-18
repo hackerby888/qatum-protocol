@@ -1,12 +1,21 @@
 #pragma once
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
+
+#else
 #include "immintrin.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#endif
+
 #include <iostream>
 #include <string.h>
 #include <cstdint>
 #include <vector>
-#include <unistd.h>
 #include "helper.hpp"
 #include <thread>
 #include "logger.hpp"
@@ -165,6 +174,41 @@ struct Socket
 {
     int mSocket = 1;
     bool isConnected = false;
+#ifdef _MSC_VER
+    int connect(const char *nodeIp, int nodePort)
+    {
+        isConnected = false;
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        {
+            return -1;
+        }
+
+        int serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (serverSocket == INVALID_SOCKET)
+        {
+            printf("Fail to create a socket (%d)!\n", WSAGetLastError());
+            return -1;
+        }
+
+        printf("Connecting to %s:%d\n", nodeIp, nodePort);
+        sockaddr_in addr;
+        ZeroMemory(&addr, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(nodePort);
+        sscanf_s(nodeIp, "%hhu.%hhu.%hhu.%hhu", &addr.sin_addr.S_un.S_un_b.s_b1, &addr.sin_addr.S_un.S_un_b.s_b2, &addr.sin_addr.S_un.S_un_b.s_b3, &addr.sin_addr.S_un.S_un_b.s_b4);
+        if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)))
+        {
+            printf("Fail to connect to %d.%d.%d.%d (%d)!\n", addr.sin_addr.S_un.S_un_b.s_b1, addr.sin_addr.S_un.S_un_b.s_b2, addr.sin_addr.S_un.S_un_b.s_b3, addr.sin_addr.S_un.S_un_b.s_b4, WSAGetLastError());
+            close();
+            return -1;
+        }
+
+        isConnected = true;
+        mSocket = serverSocket;
+        return serverSocket;
+    }
+#else
     int connect(const char *nodeIp, int nodePort)
     {
         isConnected = false;
@@ -193,8 +237,10 @@ struct Socket
         isConnected = true;
         return serverSocket;
     }
+#endif
 
-    int receiveData(uint8_t *buffer, int sz)
+    int
+    receiveData(uint8_t *buffer, int sz)
     {
         return recv(mSocket, (char *)buffer, sz, 0);
     }
@@ -245,7 +291,13 @@ struct Socket
 
     void close()
     {
+#ifdef _MSC_VER
+        closesocket(mSocket);
+        WSACleanup();
+#else
+
         ::close(mSocket);
+#endif
     }
 
     bool sendSolution(__m256i &computorPublicKey, unsigned char *nonce, unsigned char *randomSeed, const char *secretSeed)

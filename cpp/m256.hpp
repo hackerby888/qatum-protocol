@@ -1,56 +1,61 @@
 #pragma once
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#include <io.h>
+#else
 #include <immintrin.h>
 #include <stdint.h>
+#endif
 
-typedef int8_t __int8;
-typedef int16_t __int16;
-typedef int32_t __int32;
-typedef int64_t __int64;
+typedef int8_t int8_t;
+typedef int16_t int16_t;
+typedef int32_t int32_t;
+typedef int64_t int64_t;
 
-typedef uint8_t __uint8;
-typedef uint16_t __uint16;
-typedef uint32_t __uint32;
-typedef uint64_t __uint64;
+typedef uint8_t uint8_t;
+typedef uint16_t uint16_t;
+typedef uint32_t uint32_t;
+typedef uint64_t uint64_t;
 // Used for all kinds of IDs, including in QPI and contracts.
 // Existing interface and behavior should never be changed! (However, it may be extended.)
 union m256i
 {
     // access for loops and compatibility with __m256i
-    __int8 m256i_i8[32];
-    __int16 m256i_i16[16];
-    __int32 m256i_i32[8];
-    __int64 m256i_i64[4];
+    int8_t m256i_i8[32];
+    int16_t m256i_i16[16];
+    int32_t m256i_i32[8];
+    int64_t m256i_i64[4];
 
-    __uint8 m256i_u8[32];
-    __uint16 m256i_u16[16];
-    __uint32 m256i_u32[8];
-    __uint64 m256i_u64[4];
+    uint8_t m256i_u8[32];
+    uint16_t m256i_u16[16];
+    uint32_t m256i_u32[8];
+    uint64_t m256i_u64[4];
 
     // interface for QPI (no [] allowed)
     struct
     {
-        __uint64 _0, _1, _2, _3;
+        uint64_t _0, _1, _2, _3;
     } u64;
     struct
     {
-        __int64 _0, _1, _2, _3;
+        int64_t _0, _1, _2, _3;
     } i64;
     struct
     {
-        __uint32 _0, _1, _2, _3, _4, _5, _6, _7;
+        uint32_t _0, _1, _2, _3, _4, _5, _6, _7;
     } u32;
     struct
     {
-        __int32 _0, _1, _2, _3, _4, _5, _6, _7;
+        int32_t _0, _1, _2, _3, _4, _5, _6, _7;
     } i32;
     struct
     {
-        __uint16 _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
+        uint16_t _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
     } u16;
     struct
     {
-        __int16 _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
+        int16_t _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
     } i16;
     struct
     {
@@ -59,8 +64,8 @@ union m256i
     } u8;
     struct
     {
-        __int8 _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
-        __int8 _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31;
+        int8_t _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15;
+        int8_t _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31;
     } i8;
 
     m256i() = default;
