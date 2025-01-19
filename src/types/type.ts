@@ -68,6 +68,24 @@ interface PaymentQutilData {
     amount: number;
 }
 
+interface PaymentDbData {
+    solutionsShare: number;
+    solutionsVerified: number;
+    solutionsWritten: number;
+    epoch: number;
+    insertedAt: number;
+    wallet: string;
+}
+
+type PaymentDbDataWithReward = PaymentDbData & {
+    reward: number;
+};
+
+interface EpochDbData {
+    epoch: number;
+    value: number;
+}
+
 export {
     QatumSocket,
     Transaction,
@@ -78,4 +96,7 @@ export {
     QWorkerApi,
     SolutionNetState,
     PaymentQutilData,
+    PaymentDbData,
+    EpochDbData,
+    PaymentDbDataWithReward,
 };

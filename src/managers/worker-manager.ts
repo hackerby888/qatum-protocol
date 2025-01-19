@@ -1,7 +1,7 @@
 import { DATA_PATH } from "../consts/path";
 import { ONE_DAY, THREE_MINUTES } from "../consts/time";
 import QatumDb from "../database/db";
-import { QWorker, QWorkerApi, Solution } from "../types/type";
+import { PaymentDbData, QWorker, QWorkerApi, Solution } from "../types/type";
 import LOG from "../utils/logger";
 import { ComputorIdManager } from "./computor-id-manger";
 import { SolutionManager } from "./solution-manager";
@@ -253,14 +253,7 @@ namespace WorkerManager {
 
     export function calculateAndInsertRewardPayments(epoch: number) {
         let reward: {
-            [wallet: string]: {
-                solutionsShare: number;
-                solutionsVerified: number;
-                solutionsWritten: number;
-                epoch: number;
-                insertedAt: number;
-                wallet: string;
-            };
+            [wallet: string]: PaymentDbData;
         } = {};
         for (let [wallet, value] of workersMap) {
             reward[wallet] = {

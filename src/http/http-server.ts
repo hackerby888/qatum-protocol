@@ -5,6 +5,7 @@ import { ComputorIdManager } from "../managers/computor-id-manger";
 import WorkerManager from "../managers/worker-manager";
 import { SolutionManager } from "../managers/solution-manager";
 import NodeManager from "../managers/node-manager";
+import QatumDb from "../database/db";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -169,6 +170,38 @@ namespace HttpServer {
 
         app.get("/difficulty", (req, res) => {
             res.send(NodeManager.getDifficulty());
+        });
+
+        app.get("/solutionData", (req, res) => {
+            try {
+                res.send(
+                    QatumDb.getEpochSolutionValue(Number(req.query.epoch))
+                );
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
+        });
+
+        app.post("/solutionData", (req, res) => {
+            try {
+                let epochData = req.body as {
+                    epoch: number;
+                    value: number;
+                };
+
+                if (!epochData) {
+                    res.status(400).send("epochData is required");
+                    return;
+                }
+
+                QatumDb.setEpochSolutionValue(epochData);
+
+                res.status(200).send({
+                    isOk: true,
+                });
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
         });
 
         app.listen(httpPort, () => {

@@ -1,6 +1,12 @@
 import { Collection, Db, MongoClient } from "mongodb";
 import LOG from "../utils/logger";
-import { Solution, SolutionNetState } from "../types/type";
+import {
+    EpochDbData,
+    PaymentDbData,
+    PaymentDbDataWithReward,
+    Solution,
+    SolutionNetState,
+} from "../types/type";
 import { ComputorIdManager } from "../managers/computor-id-manger";
 
 namespace QatumDb {
@@ -55,9 +61,43 @@ namespace QatumDb {
         );
     }
 
-    export function insertRewardPayments(rewardPayments: any) {
+    export function insertRewardPayments(rewardPayments: PaymentDbData[]) {
         if (!database) return;
         return database.collection("payments").insertMany(rewardPayments);
+    }
+
+    export function setEpochSolutionValue(epochData: EpochDbData) {
+        if (!database) return;
+        return database
+            .collection("epoch")
+            .updateOne(
+                { epoch: epochData.epoch },
+                { $set: { value: epochData.value } },
+                { upsert: true }
+            );
+    }
+
+    export function getEpochSolutionValue(epoch: number) {
+        if (!database) return;
+        return database.collection("epoch").findOne({ epoch });
+    }
+
+    export async function getPaymentsAlongWithSolutionsValue(epoch: number) {
+        if (!database) return;
+        let payments: PaymentDbData[] = (await database
+            .collection("payments")
+            .find({ epoch })
+            .toArray()) as unknown as PaymentDbData[];
+        let solutions: EpochDbData = (await database
+            .collection("solutions")
+            .findOne({ epoch })) as unknown as EpochDbData;
+
+        payments?.forEach((payment) => {
+            (payment as PaymentDbDataWithReward).reward =
+                payment.solutionsWritten * solutions.value;
+        });
+
+        return payments as PaymentDbDataWithReward[];
     }
 }
 
