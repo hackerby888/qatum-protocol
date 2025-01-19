@@ -93,6 +93,44 @@ private:
     string ip;
 };
 
+class PaymentWorker : public AsyncWorker
+{
+public:
+    PaymentWorker(Function &callback, string paymentCsvString, string secretSeed)
+        : AsyncWorker(callback), paymentCsvString(paymentCsvString), secretSeed(secretSeed)
+    {
+        memset(&result, 0, sizeof(QutilResult));
+
+        qsocket.connect(globalIp.c_str(), PORT) != -1;
+        currentTick = qsocket.getTickNumberFromNode();
+    }
+
+    ~PaymentWorker() {}
+
+    void Execute() override
+    {
+
+        if (qsocket.isConnected && currentTick != 0)
+        {
+
+            result = qsocket.qutilSendToManyV1(paymentCsvString, secretSeed.c_str(), currentTick);
+        }
+    }
+
+    void OnOK() override
+    {
+        HandleScope scope(Env());
+        Callback().Call({Number::New(Env(), result.tick), String::New(Env(), result.txHash)});
+    }
+
+private:
+    Socket qsocket;
+    QutilResult result;
+    string paymentCsvString;
+    string secretSeed;
+    uint32_t currentTick;
+};
+
 class GetSeedWorker : public AsyncWorker
 {
 public:
@@ -315,6 +353,17 @@ Napi::Value checkScore(const Napi::CallbackInfo &info)
     return Napi::Boolean::New(info.Env(), ScoreFunctionType::isValidScore(score) && ScoreFunctionType::isGoodScore(score, threshold));
 }
 
+Napi::Value pay(const Napi::CallbackInfo &info)
+{
+    string paymentCsvString = info[0].As<Napi::String>().Utf8Value();
+    string secretSeed = info[1].As<Napi::String>().Utf8Value();
+
+    Function cb = info[2].As<Function>();
+    PaymentWorker *wk = new PaymentWorker(cb, paymentCsvString, secretSeed);
+    wk->Queue();
+    return info.Env().Undefined();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     exports.Set(Napi::String::New(env, "initSocket"),
@@ -340,6 +389,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
     exports.Set(Napi::String::New(env, "checkScore"),
                 Napi::Function::New(env, checkScore));
+
+    exports.Set(Napi::String::New(env, "pay"),
+                Napi::Function::New(env, pay));
 
     return exports;
 }

@@ -3322,9 +3322,16 @@ static bool getPublicKeyFromIdentity(const unsigned char *identity, unsigned cha
             *((unsigned long long *)&publicKeyBuffer[i << 3]) = *((unsigned long long *)&publicKeyBuffer[i << 3]) * 26 + (identity[i * 14 + j] - 'A');
         }
     }
-    *((__m256i *)publicKey) = *((__m256i *)publicKeyBuffer);
+    // *((__m256i *)publicKey) = *((__m256i *)publicKeyBuffer);
+    memcpy(publicKey, publicKeyBuffer, 32);
 
     return true;
+}
+
+void getTxHashFromDigest(const uint8_t *digest, char *txHash)
+{
+    bool isLowerCase = true;
+    getIdentityFromPublicKey(digest, txHash, isLowerCase);
 }
 
 bool getSubseedFromSeed(const uint8_t *seed, uint8_t *subseed)

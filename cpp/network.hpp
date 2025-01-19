@@ -20,15 +20,44 @@
 #include <vector>
 #include "helper.hpp"
 #include <thread>
-#include "logger.hpp"
 
 #define ZERO _mm256_setzero_si256()
 #define MESSAGE_TYPE_SOLUTION 0
 #define REQUEST_SYSTEM_INFO 46
 #define RESPOND_SYSTEM_INFO 47
+#define BROADCAST_TRANSACTION 24
+#define SIGNATURE_SIZE 64
 #define PORT 21841
 
 using namespace std;
+
+constexpr int QUTIL_CONTRACT_ID = 4;
+
+enum qutilFunctionId
+{
+    GetSendToManyV1Fee = 1,
+};
+
+enum qutilProcedureId
+{
+    SendToManyV1 = 1,
+    BurnQubic = 2,
+};
+
+struct SendToManyV1_input
+{
+    uint8_t addresses[25][32];
+    int64_t amounts[25];
+};
+
+struct BurnQubic_input
+{
+    long long amount;
+};
+struct BurnQubic_output
+{
+    long long amount;
+};
 
 struct RequestResponseHeader
 {
@@ -130,6 +159,16 @@ public:
     }
 };
 
+typedef struct
+{
+    unsigned char sourcePublicKey[32];
+    unsigned char destinationPublicKey[32];
+    long long amount;
+    unsigned int tick;
+    unsigned short inputType;
+    unsigned short inputSize;
+} Transaction;
+
 struct BroadcastMessage
 {
     unsigned char sourcePublicKey[32];
@@ -172,6 +211,44 @@ typedef struct
     unsigned char gammingNonce[32];
 } Message;
 
+struct RequestContractFunction // Invokes contract function
+{
+    unsigned int contractIndex;
+    unsigned short inputType;
+    unsigned short inputSize;
+    // Variable-size input
+
+    static constexpr unsigned char type()
+    {
+        return 42;
+    }
+};
+
+struct RespondContractFunction // Returns result of contract function invocation
+{
+    // Variable-size output; the size must be 0 if the invocation has failed for whatever reason (e.g. no a function registered for [inputType], or the function has timed out)
+
+    static constexpr unsigned char type()
+    {
+        return 43;
+    }
+};
+
+struct GetSendToManyV1Fee_output
+{
+    long long fee; // Number of billionths
+    static constexpr unsigned char type()
+    {
+        return 43;
+    }
+};
+
+struct QutilResult
+{
+    unsigned int tick;
+    string txHash;
+};
+
 struct Socket
 {
     int mSocket = 1;
@@ -211,6 +288,7 @@ struct Socket
 
         isConnected = true;
         mSocket = serverSocket;
+        flush();
         return serverSocket;
     }
 #else
@@ -240,9 +318,20 @@ struct Socket
 
         mSocket = serverSocket;
         isConnected = true;
+        flush();
         return serverSocket;
     }
 #endif
+
+    void flush()
+    {
+        uint8_t tmp[1024];
+        int recvByte = receiveData(tmp, 1024);
+        while (recvByte > 0)
+        {
+            recvByte = receiveData(tmp, 1024);
+        }
+    }
 
     int
     receiveData(uint8_t *buffer, int sz)
@@ -250,7 +339,7 @@ struct Socket
         return recv(mSocket, (char *)buffer, sz, 0);
     }
 
-    int sendData(uint8_t *buffer, int sz)
+    bool sendData(uint8_t *buffer, int sz)
     {
         try
         {
@@ -270,7 +359,6 @@ struct Socket
         }
         catch (const std::exception &e)
         {
-            isConnected = false;
             return 0;
         }
     }
@@ -418,12 +506,213 @@ struct Socket
             this_thread::sleep_for(std::chrono::milliseconds(500));
             if (retry++ >= 3)
             {
-                log("error", "[addon] failed to send solution to node");
                 return false;
             }
         }
 
         return true;
+    }
+
+    long long getSendToManyV1Fee()
+    {
+        struct
+        {
+            RequestResponseHeader header;
+            RequestContractFunction rcf;
+        } packet;
+        packet.header.checkAndSetSize(sizeof(packet));
+        packet.header.randomizeDejavu();
+        packet.header.setType(RequestContractFunction::type());
+        packet.rcf.inputSize = 0;
+        packet.rcf.inputType = qutilFunctionId::GetSendToManyV1Fee;
+        packet.rcf.contractIndex = QUTIL_CONTRACT_ID;
+        sendData((uint8_t *)&packet, packet.header.size());
+
+        GetSendToManyV1Fee_output fee;
+        memset(&fee, 0, sizeof(GetSendToManyV1Fee_output));
+        try
+        {
+            fee = receivePacketWithHeaderAs<GetSendToManyV1Fee_output>();
+            return fee.fee;
+        }
+        catch (std::logic_error &e)
+        {
+            cout << e.what() << endl;
+            return -1;
+        }
+    }
+
+    int receiveDataBig(uint8_t *buffer, int sz)
+    {
+        int count = 0;
+        while (sz)
+        {
+            int chunk = (std::min)(sz, 1024);
+            int recvByte = receiveData(buffer + count, chunk);
+            count += recvByte;
+            sz -= recvByte;
+        }
+        return count;
+    }
+
+    template <typename T>
+    T receivePacketWithHeaderAs()
+    {
+        // first receive the
+        uint8_t *mBuffer = new uint8_t[sizeof(T)];
+        RequestResponseHeader header;
+        int recvByte = receiveData((uint8_t *)&header, sizeof(RequestResponseHeader));
+        if (recvByte != sizeof(RequestResponseHeader))
+        {
+            throw std::logic_error("No connection.");
+        }
+        if (header.type() != T::type())
+        {
+            throw std::logic_error("Unexpected header type: " + std::to_string(header.type()) + " (expected: " + std::to_string(T::type()) + ").");
+        }
+
+        int packetSize = header.size();
+        int remainingSize = packetSize - sizeof(RequestResponseHeader);
+        T result;
+        memset(&result, 0, sizeof(T));
+        if (remainingSize)
+        {
+            memset(mBuffer, 0, sizeof(T));
+            // receive the rest, allow 5 tries because sometimes not all requested bytes are received
+            int recvByteTotal = 0;
+            for (int i = 0; i < 5; ++i)
+            {
+                if (remainingSize > 4096)
+                    recvByte = receiveDataBig(mBuffer + recvByteTotal, remainingSize);
+                else
+                    recvByte = receiveData(mBuffer + recvByteTotal, remainingSize);
+                recvByteTotal += recvByte;
+                remainingSize -= recvByte;
+                if (!remainingSize)
+                    break;
+            }
+            if (remainingSize)
+            {
+                throw std::logic_error("Unexpected data size: missing " + std::to_string(remainingSize) + " bytes, expected a total of " + std::to_string(packetSize) + " bytes (incl. header).");
+            }
+            result = *((T *)mBuffer);
+        }
+        return result;
+    }
+
+    // paymentCsvString format
+    //  ID,Amount\n (25)
+    QutilResult qutilSendToManyV1(string paymentCsvString, const char *secretSeed, uint32_t pCurrentTick)
+    {
+        QutilResult result;
+        memset(&result, 0, sizeof(QutilResult));
+
+        long long fee = getSendToManyV1Fee();
+        if (fee == -1)
+            return result;
+
+        std::vector<std::string> addresses;
+        std::vector<int64_t> amounts;
+
+        while (paymentCsvString.find("\n") != string::npos)
+        {
+            string line = paymentCsvString.substr(0, paymentCsvString.find("\n"));
+            paymentCsvString = paymentCsvString.substr(paymentCsvString.find("\n") + 1);
+            string address = line.substr(0, line.find(","));
+            string amount = line.substr(line.find(",") + 1);
+
+            if (address.size() == 60 && stoll(amount) > 0)
+            {
+                addresses.push_back(address);
+                amounts.push_back(stoll(amount));
+            }
+
+            if (addresses.size() >= 25)
+            {
+                break;
+            }
+        }
+
+        uint8_t sourcePublicKey[32] = {0};
+        uint8_t privateKey[32] = {0};
+        uint8_t subseed[32] = {0};
+        uint8_t destPublicKey[32] = {0};
+        uint8_t digest[32] = {0};
+        uint8_t signature[64] = {0};
+        char publicIdentity[128] = {0};
+        char txHash[128] = {0};
+
+        getSubseedFromSeed((uint8_t *)secretSeed, subseed);
+        getPrivateKeyFromSubSeed(subseed, privateKey);
+        getPublicKeyFromSeed(secretSeed, sourcePublicKey);
+        const bool isLowerCase = false;
+        getIdentityFromPublicKey(sourcePublicKey, publicIdentity, isLowerCase);
+
+        ((uint64_t *)destPublicKey)[0] = QUTIL_CONTRACT_ID;
+        ((uint64_t *)destPublicKey)[1] = 0;
+        ((uint64_t *)destPublicKey)[2] = 0;
+        ((uint64_t *)destPublicKey)[3] = 0;
+
+        struct
+        {
+            RequestResponseHeader header;
+            Transaction transaction;
+            SendToManyV1_input stm;
+            unsigned char signature[64];
+        } packet;
+
+        memset(&packet.stm, 0, sizeof(SendToManyV1_input));
+        packet.transaction.amount = 0;
+
+        for (int i = 0; i < std::min(25, int(addresses.size())); i++)
+        {
+
+            getPublicKeyFromIdentity((const unsigned char *)addresses[i].data(), packet.stm.addresses[i]);
+            packet.stm.amounts[i] = amounts[i];
+            packet.transaction.amount += amounts[i];
+        }
+
+        packet.transaction.amount += fee;
+        memcpy(packet.transaction.sourcePublicKey, sourcePublicKey, 32);
+        memcpy(packet.transaction.destinationPublicKey, destPublicKey, 32);
+        uint32_t currentTick = pCurrentTick;
+        packet.transaction.tick = currentTick + 10;
+        packet.transaction.inputType = qutilProcedureId::SendToManyV1;
+        packet.transaction.inputSize = sizeof(SendToManyV1_input);
+
+        KangarooTwelve((unsigned char *)&packet.transaction,
+                       sizeof(packet.transaction) + sizeof(SendToManyV1_input),
+                       digest,
+                       32);
+
+        signData(secretSeed, (unsigned char *)&packet.transaction, sizeof(packet.transaction) + sizeof(SendToManyV1_input), signature);
+        memcpy(packet.signature, signature, 64);
+        packet.header.checkAndSetSize(sizeof(packet));
+        packet.header.setDejavu(0);
+        packet.header.setType(BROADCAST_TRANSACTION);
+        bool sentOk = sendData((uint8_t *)&packet, packet.header.size());
+
+        if (!sentOk)
+        {
+            return result;
+        }
+
+        KangarooTwelve((unsigned char *)&packet.transaction,
+                       sizeof(packet.transaction) + sizeof(SendToManyV1_input) + SIGNATURE_SIZE,
+                       digest,
+                       32);
+        getTxHashFromDigest(digest, txHash);
+
+        result.tick = currentTick + 10;
+        result.txHash = txHash;
+
+        return result;
+    }
+
+    uint32_t getTickNumberFromNode()
+    {
+        CurrentSystemInfo csi = getSystemInfo();
+        return csi.tick;
     }
 
     CurrentSystemInfo

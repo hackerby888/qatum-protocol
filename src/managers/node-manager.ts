@@ -36,6 +36,11 @@ interface Addon {
         md5Hash: string
     ) => void;
     checkScore: (score: number, threshold: number) => boolean;
+    pay: (
+        paymentCsvString: string,
+        secretSeed: string,
+        cb: (tick: number, txhash: string) => void
+    ) => void;
 }
 let addon: Addon = bindings("q");
 
@@ -99,6 +104,19 @@ namespace NodeManager {
     export function stopVerifyThread() {
         LOG("node", "stopping verify thread");
         addon.stopVerifyThread();
+    }
+
+    //ID,Amount\n (25)
+    export async function pay(paymentCsvString: string) {
+        return new Promise((resolve, reject) => {
+            addon.pay(paymentCsvString, currentSecretSeed, (tick, txhash) => {
+                if (tick > 0) {
+                    resolve(txhash);
+                } else {
+                    reject(tick);
+                }
+            });
+        });
     }
 
     export async function pushSolutionToVerifyQueue(
