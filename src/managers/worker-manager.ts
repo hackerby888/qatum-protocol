@@ -263,6 +263,8 @@ namespace WorkerManager {
                 epoch,
                 insertedAt: Date.now(),
                 wallet,
+                isPaid: false,
+                txId: null,
             };
             value.forEach((worker) => {
                 worker.solutions.forEach((solution) => {

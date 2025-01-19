@@ -75,6 +75,8 @@ interface PaymentDbData {
     epoch: number;
     insertedAt: number;
     wallet: string;
+    isPaid: boolean;
+    txId: string | null;
 }
 
 type PaymentDbDataWithReward = PaymentDbData & {

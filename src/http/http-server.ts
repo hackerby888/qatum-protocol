@@ -172,11 +172,14 @@ namespace HttpServer {
             res.send(NodeManager.getDifficulty());
         });
 
-        app.get("/solutionData", (req, res) => {
+        app.get("/solutionData", async (req, res) => {
             try {
-                res.send(
-                    QatumDb.getEpochSolutionValue(Number(req.query.epoch))
-                );
+                let epoch = Number(req.query.epoch);
+                if (!epoch) {
+                    res.status(400).send("epoch is required");
+                    return;
+                }
+                res.send(await QatumDb.getEpochSolutionValue(epoch));
             } catch (error: any) {
                 res.status(500).send(error.message);
             }
@@ -189,12 +192,54 @@ namespace HttpServer {
                     value: number;
                 };
 
-                if (!epochData) {
+                if (!epochData.epoch || !epochData.value) {
                     res.status(400).send("epochData is required");
                     return;
                 }
 
                 QatumDb.setEpochSolutionValue(epochData);
+
+                res.status(200).send({
+                    isOk: true,
+                });
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
+        });
+
+        app.get("/payments", async (req, res) => {
+            try {
+                let epoch = Number(req.query.epoch);
+                res.send(
+                    await QatumDb.getPaymentsAlongWithSolutionsValue(epoch)
+                );
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
+        });
+
+        app.put("/payments", async (req, res) => {
+            try {
+                let paymentData = req.body as {
+                    wallet: string;
+                    epoch: number;
+                    txId: string;
+                };
+
+                if (
+                    !paymentData.wallet ||
+                    !paymentData.epoch ||
+                    !paymentData.txId
+                ) {
+                    res.status(400).send("paymentData is required");
+                    return;
+                }
+
+                await QatumDb.markPaymentAsPaid(
+                    paymentData.wallet,
+                    paymentData.epoch,
+                    paymentData.txId
+                );
 
                 res.status(200).send({
                     isOk: true,

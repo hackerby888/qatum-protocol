@@ -89,15 +89,26 @@ namespace QatumDb {
             .find({ epoch })
             .toArray()) as unknown as PaymentDbData[];
         let solutions: EpochDbData = (await database
-            .collection("solutions")
+            .collection("epoch")
             .findOne({ epoch })) as unknown as EpochDbData;
 
         payments?.forEach((payment) => {
             (payment as PaymentDbDataWithReward).reward =
-                payment.solutionsWritten * solutions.value;
+                payment.solutionsWritten * solutions?.value || 0;
         });
 
         return payments as PaymentDbDataWithReward[];
+    }
+
+    export async function markPaymentAsPaid(
+        wallet: string,
+        epoch: number,
+        txId: string
+    ) {
+        if (!database) return;
+        return await database
+            .collection("payments")
+            .updateOne({ wallet, epoch }, { $set: { isPaid: true, txId } });
     }
 }
 
