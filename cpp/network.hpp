@@ -3,6 +3,8 @@
 #ifdef _MSC_VER
 #include <intrin.h>
 #include <winsock2.h>
+#include <Ws2tcpip.h>
+
 #pragma comment(lib, "ws2_32.lib")
 
 #else
@@ -179,25 +181,28 @@ struct Socket
     {
         isConnected = false;
         WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        if (WSAStartup(MAKEWORD(2, 0), &wsaData) != 0)
         {
             return -1;
         }
 
-        int serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (serverSocket == INVALID_SOCKET)
-        {
-            printf("Fail to create a socket (%d)!\n", WSAGetLastError());
-            return -1;
-        }
+        int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+        size_t tv = 1000;
+        setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv);
+        setsockopt(serverSocket, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof tv);
 
-        printf("Connecting to %s:%d\n", nodeIp, nodePort);
         sockaddr_in addr;
-        ZeroMemory(&addr, sizeof(addr));
+        memset((char *)&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
         addr.sin_port = htons(nodePort);
-        sscanf_s(nodeIp, "%hhu.%hhu.%hhu.%hhu", &addr.sin_addr.S_un.S_un_b.s_b1, &addr.sin_addr.S_un.S_un_b.s_b2, &addr.sin_addr.S_un.S_un_b.s_b3, &addr.sin_addr.S_un.S_un_b.s_b4);
-        if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)))
+
+        if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
+        {
+            printf("Error translating command line ip address to usable one.");
+            return -1;
+        }
+
+        if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
             printf("Fail to connect to %d.%d.%d.%d (%d)!\n", addr.sin_addr.S_un.S_un_b.s_b1, addr.sin_addr.S_un.S_un_b.s_b2, addr.sin_addr.S_un.S_un_b.s_b3, addr.sin_addr.S_un.S_un_b.s_b4, WSAGetLastError());
             close();

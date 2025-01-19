@@ -120,12 +120,12 @@ public:
             {
                 isOk = false;
             }
-            char hex[64];
+            char hex[65];
+            hex[64] = '\0';
             unsigned char seed[32];
             memcpy(seed, infoz.randomMiningSeed, 32);
             byteToHex(seed, hex, 32);
             seedHex = isOk ? string((const char *)hex, 64) : "-1";
-            qsocket.close();
         }
         else
         {
