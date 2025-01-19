@@ -7,7 +7,12 @@ import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/exit";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
-import { Solution, SolutionData, SolutionResult } from "../types/type";
+import {
+    PaymentQutilData,
+    Solution,
+    SolutionData,
+    SolutionResult,
+} from "../types/type";
 import fs from "fs";
 import os from "os";
 import { DATA_PATH } from "../consts/path";
@@ -107,7 +112,11 @@ namespace NodeManager {
     }
 
     //ID,Amount\n (25)
-    export async function pay(paymentCsvString: string) {
+    export async function pay(qutilDataPayments: PaymentQutilData[]) {
+        let paymentCsvString =
+            qutilDataPayments
+                .map((payment) => `${payment.id},${payment.amount}`)
+                .join("\n") + "\n";
         return new Promise((resolve, reject) => {
             addon.pay(paymentCsvString, currentSecretSeed, (tick, txhash) => {
                 if (tick > 0) {

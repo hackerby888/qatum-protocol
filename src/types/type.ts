@@ -63,6 +63,11 @@ interface QWorkerApi {
     lastActive: number;
 }
 
+interface PaymentQutilData {
+    id: string;
+    amount: number;
+}
+
 export {
     QatumSocket,
     Transaction,
@@ -72,4 +77,5 @@ export {
     QWorker,
     QWorkerApi,
     SolutionNetState,
+    PaymentQutilData,
 };
