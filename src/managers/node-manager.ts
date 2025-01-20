@@ -112,7 +112,9 @@ namespace NodeManager {
     }
 
     //ID,Amount\n (25)
-    export async function pay(qutilDataPayments: PaymentQutilData[]) {
+    export async function pay(
+        qutilDataPayments: PaymentQutilData[]
+    ): Promise<any> {
         let paymentCsvString =
             qutilDataPayments
                 .map((payment) => `${payment.id},${payment.amount}`)
@@ -120,9 +122,15 @@ namespace NodeManager {
         return new Promise((resolve, reject) => {
             addon.pay(paymentCsvString, currentSecretSeed, (tick, txhash) => {
                 if (tick > 0) {
-                    resolve(txhash);
+                    resolve({
+                        tick,
+                        txhash,
+                    });
                 } else {
-                    reject(tick);
+                    reject({
+                        tick,
+                        txhash,
+                    });
                 }
             });
         });
