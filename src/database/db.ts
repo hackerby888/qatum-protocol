@@ -68,13 +68,16 @@ namespace QatumDb {
 
     export function setEpochSolutionValue(epochData: EpochDbData) {
         if (!database) return;
-        return database
-            .collection("epoch")
-            .updateOne(
-                { epoch: epochData.epoch },
-                { $set: { value: epochData.value } },
-                { upsert: true }
-            );
+        return database.collection("epoch").updateOne(
+            { epoch: epochData.epoch },
+            {
+                $set: {
+                    solutionValue: epochData.solutionValue,
+                    shareValue: epochData.shareValue,
+                },
+            },
+            { upsert: true }
+        );
     }
 
     export function getEpochSolutionValue(epoch: number) {
@@ -82,19 +85,70 @@ namespace QatumDb {
         return database.collection("epoch").findOne({ epoch });
     }
 
-    export async function getPaymentsAlongWithSolutionsValue(epoch: number) {
+    export async function getTotalSolutions(epoch: number) {
+        if (!database) return;
+        let allPayments = await database
+            .collection("payments")
+            .find({ epoch })
+            .toArray();
+
+        let totalSolutionsShare = allPayments.reduce(
+            (acc, payment) => acc + payment.solutionsShare,
+            0
+        );
+
+        let totalSolutionsWritten = allPayments.reduce(
+            (acc, payment) => acc + payment.solutionsWritten,
+            0
+        );
+
+        let totalSolutionVerified = allPayments.reduce(
+            (acc, payment) => acc + payment.solutionsVerified,
+            0
+        );
+
+        return {
+            totalSolutionsShare,
+            totalSolutionsWritten,
+            totalSolutionVerified,
+        };
+    }
+
+    export async function getPaymentsAlongWithSolutionsValue(
+        epoch: number,
+        needToBeUnpaid: boolean = true,
+        limit: number = 1,
+        useLimit: boolean = true
+    ) {
         if (!database) return;
         let payments: PaymentDbData[] = (await database
             .collection("payments")
-            .find({ epoch })
+            .find(
+                needToBeUnpaid
+                    ? {
+                          epoch,
+                          isPaid: false,
+                      }
+                    : { epoch },
+                useLimit ? { limit } : {}
+            )
             .toArray()) as unknown as PaymentDbData[];
         let solutions: EpochDbData = (await database
             .collection("epoch")
             .findOne({ epoch })) as unknown as EpochDbData;
 
+        if (!payments || !payments.length || !solutions) return [];
+
+        let isShareModeEpoch = payments[0].solutionsShare > 0;
+
         payments?.forEach((payment) => {
-            (payment as PaymentDbDataWithReward).reward =
-                payment.solutionsWritten * solutions?.value || 0;
+            (payment as PaymentDbDataWithReward).reward = !isShareModeEpoch
+                ? Math.floor(
+                      payment.solutionsWritten * solutions?.solutionValue || 0
+                  )
+                : Math.floor(
+                      payment.solutionsShare * solutions?.shareValue || 0
+                  );
         });
 
         return payments as PaymentDbDataWithReward[];
@@ -108,7 +162,7 @@ namespace QatumDb {
         if (!database) return;
         return await database
             .collection("payments")
-            .updateOne({ wallet, epoch }, { $set: { isPaid: true, txId } });
+            .updateMany({ wallet, epoch }, { $set: { isPaid: true, txId } });
     }
 }
 

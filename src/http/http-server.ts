@@ -6,6 +6,8 @@ import WorkerManager from "../managers/worker-manager";
 import { SolutionManager } from "../managers/solution-manager";
 import NodeManager from "../managers/node-manager";
 import QatumDb from "../database/db";
+import PaymentManager from "../managers/payment-manager";
+import { EpochDbData } from "../types/type";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -187,12 +189,13 @@ namespace HttpServer {
 
         app.post("/solutionData", (req, res) => {
             try {
-                let epochData = req.body as {
-                    epoch: number;
-                    value: number;
-                };
+                let epochData = req.body as EpochDbData;
 
-                if (!epochData.epoch || !epochData.value) {
+                if (
+                    isNaN(epochData.epoch) ||
+                    isNaN(epochData.solutionValue) ||
+                    isNaN(epochData.shareValue)
+                ) {
                     res.status(400).send("epochData is required");
                     return;
                 }
@@ -206,12 +209,57 @@ namespace HttpServer {
                 res.status(500).send(error.message);
             }
         });
+        app.post("/payments/system/pushEpoch", async (req, res) => {
+            try {
+                let epoch = Number(req.body.epoch);
+                PaymentManager.pushEpochToPay(epoch);
+                res.send({ isOk: true });
+            } catch (error: any) {
+                res.status(500).send(
+                    "Error while pushing epoch to system payments: " +
+                        error.message
+                );
+            }
+        });
+
+        app.get("/payments/system/enable", async (req, res) => {
+            try {
+                let enable = req.query.enable === "true";
+                if (enable) PaymentManager.enablePayment();
+                else PaymentManager.disablePayment();
+                res.send({
+                    isOk: true,
+                });
+            } catch (error: any) {
+                res.status(500).send(
+                    "Error while switch enability system payments: " +
+                        error.message
+                );
+            }
+        });
+
+        app.get("/payments/totalSolutions", async (req, res) => {
+            try {
+                let epoch = Number(req.query.epoch);
+                if (isNaN(epoch)) {
+                    res.status(400).send("epoch is required");
+                    return;
+                }
+                res.send(await QatumDb.getTotalSolutions(epoch));
+            } catch (error: any) {
+                res.status(500).send(error.message);
+            }
+        });
 
         app.get("/payments", async (req, res) => {
             try {
                 let epoch = Number(req.query.epoch);
+                let needToBeUnpaid = req.query.needToBeUnpaid === "true";
                 res.send(
-                    await QatumDb.getPaymentsAlongWithSolutionsValue(epoch)
+                    await QatumDb.getPaymentsAlongWithSolutionsValue(
+                        epoch,
+                        needToBeUnpaid
+                    )
                 );
             } catch (error: any) {
                 res.status(500).send(error.message);

@@ -85,7 +85,8 @@ type PaymentDbDataWithReward = PaymentDbData & {
 
 interface EpochDbData {
     epoch: number;
-    value: number;
+    solutionValue: number;
+    shareValue: number;
 }
 
 export {

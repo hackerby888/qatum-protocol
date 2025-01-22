@@ -13,6 +13,7 @@ import os from "os";
 import LOG from "./utils/logger";
 import WorkerManager from "./managers/worker-manager";
 import QatumDb from "./database/db";
+import PaymentManager from "./managers/payment-manager";
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -34,6 +35,7 @@ async function main() {
         await ComputorIdManager.init();
         WorkerManager.init();
         SolutionManager.init();
+        PaymentManager.init();
         await NodeManager.init(
             process.env.NODE_IP as string,
             process.env.SECRET_SEED as string

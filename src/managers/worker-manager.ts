@@ -283,6 +283,11 @@ namespace WorkerManager {
 
         let rewardPaymentsArray = [];
         for (let wallet in reward) {
+            if (
+                reward[wallet].solutionsShare === 0 &&
+                reward[wallet].solutionsWritten === 0
+            )
+                continue;
             rewardPaymentsArray.push(reward[wallet]);
         }
         QatumDb.insertRewardPayments(rewardPaymentsArray);
