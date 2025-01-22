@@ -9,7 +9,7 @@ Qatum is the stratum-like protocol for qubic.
 ## Requirement
 
 -   Nodejs
--   GCC or Clang
+-   Linux : GCC or Clang | Windows: MSVS Compiler
 -   Python >= 3.12
 -   AVX2 or AVX512
 
