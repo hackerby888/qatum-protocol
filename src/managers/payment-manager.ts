@@ -35,8 +35,8 @@ namespace PaymentManager {
     }
 
     export async function checkIfTransactionIsOk(txhash: string, tick: number) {
-        try {
-            while (true) {
+        while (true) {
+            try {
                 let res = await qfetch(
                     `https://rpc.qubic.org/v1/ticks/${tick}/approved-transactions`
                 );
@@ -64,9 +64,10 @@ namespace PaymentManager {
                 } else {
                     return false;
                 }
+            } catch (e: any) {
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+                continue;
             }
-        } catch (e: any) {
-            return false;
         }
     }
 
