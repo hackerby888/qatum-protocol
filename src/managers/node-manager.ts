@@ -304,15 +304,25 @@ namespace NodeManager {
     }
 
     export async function syncMiningSeed() {
-        return new Promise((resolve, reject) => {
-            addon.getMiningCurrentMiningSeed((newSeed: string) => {
-                if (newSeed === "-1") {
-                    return reject(new Error("failed to get new seed"));
-                }
-                currentMiningSeed = newSeed;
-                resolve(undefined);
-            });
-        });
+        let canBreak = false;
+        while (true) {
+            try {
+                if (canBreak) break;
+                await new Promise((resolve, reject) => {
+                    addon.getMiningCurrentMiningSeed((newSeed: string) => {
+                        if (newSeed === "-1") {
+                            return reject(new Error("failed to get new seed"));
+                        }
+                        currentMiningSeed = newSeed;
+                        canBreak = true;
+                        resolve(undefined);
+                    });
+                });
+            } catch (e: any) {
+                LOG("error", e.message);
+                continue;
+            }
+        }
     }
 
     export function watchMiningSeed() {
