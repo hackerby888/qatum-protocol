@@ -48,7 +48,10 @@ namespace SolutionManager {
                 JSON.stringify(moduleData)
             );
         } catch (e: any) {
-            LOG("error", `failed to save solutions to disk ${e}`);
+            LOG(
+                "error",
+                `SolutionManager.saveToDisk: failed to save solutions to disk ${e}`
+            );
         }
     }
 
@@ -80,7 +83,7 @@ namespace SolutionManager {
                     `solutions-${process.env.MODE}.json not found, creating new one`
                 );
             } else {
-                LOG("error", error.message);
+                LOG("error", "SolutionManager.loadFromDisk: " + error.message);
             }
         }
     }

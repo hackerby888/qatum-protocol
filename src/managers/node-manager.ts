@@ -74,7 +74,10 @@ namespace NodeManager {
                 JSON.stringify(difficulty)
             );
         } catch (error) {
-            LOG("error", `failed to save difficulty to disk ${error}`);
+            LOG(
+                "error",
+                `NodeManager.saveToDisk: failed to save difficulty to disk ${error}`
+            );
         }
     }
 
@@ -88,7 +91,7 @@ namespace NodeManager {
             if (error.message.includes("no such file or directory")) {
                 LOG("sys", `difficulty.json not found, creating new one`);
             } else {
-                LOG("error", error.message);
+                LOG("error", "NodeManager.loadFromDisk: " + error.message);
             }
         }
     }
@@ -159,7 +162,10 @@ namespace NodeManager {
                     if (isOk) {
                         resolve(undefined);
                     } else {
-                        LOG("error", "failed to connect to node");
+                        LOG(
+                            "error",
+                            "NodeManager.initToNodeSocket: failed to connect to node"
+                        );
                         Platform.exit(1);
                     }
                 });
@@ -168,7 +174,7 @@ namespace NodeManager {
             await syncMiningSeed();
             watchMiningSeed();
         } catch (e: any) {
-            LOG("error", e.message);
+            LOG("error", "NodeManager.initToNodeSocket: " + e.message);
         }
     }
 
@@ -191,7 +197,10 @@ namespace NodeManager {
             } catch (e: any) {
                 if (solution) solutionsToSubmitQueue.push(solution);
                 isProcessing = false;
-                LOG("error", e.message);
+                LOG(
+                    "error",
+                    "NodeManager.watchAndSubmitSolution: " + e.message
+                );
             }
         }, FIVE_SECONDS);
     }
@@ -319,7 +328,7 @@ namespace NodeManager {
                     });
                 });
             } catch (e: any) {
-                LOG("error", e.message);
+                LOG("error", "NodeManager.syncMiningSeed: " + e.message);
                 continue;
             }
         }

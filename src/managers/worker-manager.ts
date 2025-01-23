@@ -92,7 +92,7 @@ namespace WorkerManager {
                     `workers-${candicateEpoch}.json not found, creating new one`
                 );
             } else {
-                LOG("error", error.message);
+                LOG("error", "WorkerManager.loadFromDisk: " + error.message);
             }
         }
     }
@@ -140,7 +140,10 @@ namespace WorkerManager {
                 globalStats.wallets = wallets;
                 globalStats.lastUpdated = Date.now();
             } catch (error: any) {
-                LOG("error", `failed to update globalStats ${error}`);
+                LOG(
+                    "error",
+                    `WorkerManager.watchGlobalStats: failed to update globalStats ${error}`
+                );
             }
         }, UPDATE_GLOBALSTATS_INTERVAL);
     }

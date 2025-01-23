@@ -174,7 +174,7 @@ namespace QatumServer {
                         let string = buffer.substring(0, dindex);
                         handler(string);
                     } catch (e: any) {
-                        LOG("error", e.message);
+                        LOG("error", "QatumServer.createServer: " + e.message);
                     }
 
                     buffer = buffer.substring(
@@ -189,7 +189,7 @@ namespace QatumServer {
                     return;
                 }
 
-                LOG("error", "[qatum] " + err.message);
+                LOG("error", "QatumServer.createServer: " + err.message);
             });
 
             socket.on("close", () => {

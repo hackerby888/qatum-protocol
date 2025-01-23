@@ -133,6 +133,11 @@ namespace PaymentManager {
                                                 `paid ${p.wallet} with ${p.reward} qutil in epoch ${epoch}`
                                             );
                                         });
+                                    } else {
+                                        LOG(
+                                            "error",
+                                            `PaymentManager.watchAndPay: transaction failed for epoch ${epoch} txhash ${txhash}`
+                                        );
                                     }
                                 }
                             )

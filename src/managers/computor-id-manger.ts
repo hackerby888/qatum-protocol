@@ -138,7 +138,10 @@ export namespace ComputorIdManager {
         let candicateEpoch = epoch || ticksData?.tickInfo?.epoch;
         try {
             if (!candicateEpoch) {
-                LOG("error", "epoch not found (no tick data)");
+                LOG(
+                    "error",
+                    "ComputorIdManager.loadFromDisk: epoch not found (no tick data)"
+                );
                 Platform.exit(1);
             }
 
@@ -156,7 +159,10 @@ export namespace ComputorIdManager {
                     `computorIdMap-${candicateEpoch}.json not found, creating new one`
                 );
             } else {
-                LOG("error", error.message);
+                LOG(
+                    "error",
+                    "ComputorIdManager.loadFromDisk: " + error.message
+                );
             }
         }
 
@@ -168,7 +174,7 @@ export namespace ComputorIdManager {
             if (error.message.includes("no such file or directory")) {
                 LOG("sys", `miningConfig.json not found, creating new one`);
             } else {
-                LOG("error", error.message);
+                LOG("error", "ComputorIdManager.loadFromDisk" + error.message);
             }
         }
     }
@@ -189,7 +195,10 @@ export namespace ComputorIdManager {
         try {
             await syncTicksData();
         } catch (error: any) {
-            LOG("error", "failed to connect to qubic rpc server");
+            LOG(
+                "error",
+                "ComputorIdManager.init: failed to connect to qubic rpc server"
+            );
             Platform.exit(1);
         }
         loadFromDisk();
@@ -205,7 +214,7 @@ export namespace ComputorIdManager {
                     autoBalanceComputorIdHashrate(true);
                 }
             } catch (error: any) {
-                LOG("error", error.message);
+                LOG("error", "ComputorIdManager.init: " + error.message);
             }
         }, THREE_MINUTES);
     }
@@ -588,7 +597,10 @@ export namespace ComputorIdManager {
             await syncEmptyTicks();
             qliScores = await qliFetch(`https://api.qubic.li/Score/Get`);
         } catch (error: any) {
-            LOG("error", `${error.message}, skip sync score`);
+            LOG(
+                "error",
+                `ComputorIdManager.fetchScoreV2: ${error.message}, skip sync score`
+            );
             return;
         }
 
@@ -679,7 +691,10 @@ export namespace ComputorIdManager {
                     computorIdMap[computorId].solutionsFetched =
                         solutionsFetched;
                 } catch (error: any) {
-                    LOG("error", "[sync score] " + error.message);
+                    LOG(
+                        "error",
+                        "ComputorIdManager.fetchScoreV2: " + error.message
+                    );
                 }
             }
         }

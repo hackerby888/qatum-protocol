@@ -67,7 +67,11 @@ namespace VerificationClusterServer {
                         let string = buffer.substring(0, dindex);
                         handler(string);
                     } catch (e: any) {
-                        LOG("error", e.message);
+                        LOG(
+                            "error",
+                            "VerificationClusterServer.createServer: " +
+                                e.message
+                        );
                     }
 
                     buffer = buffer.substring(
@@ -82,7 +86,10 @@ namespace VerificationClusterServer {
             });
 
             socket.on("error", (e) => {
-                LOG("error", e.message);
+                LOG(
+                    "error",
+                    "VerificationClusterServer.createServer: " + e.message
+                );
             });
         });
         server.listen(port, () => {
@@ -169,7 +176,11 @@ namespace VerificationClusterServer {
                     let string = buffer.substring(0, dindex);
                     handler(string);
                 } catch (e: any) {
-                    LOG("error", e.message);
+                    LOG(
+                        "error",
+                        "VerificationClusterServer.connectToServer: " +
+                            e.message
+                    );
                 }
 
                 buffer = buffer.substring(
