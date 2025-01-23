@@ -63,8 +63,12 @@ export namespace ComputorIdManager {
             };
             solutionsFetched: SolutionData[];
         };
-    } = {
-        MSKFZNEKCTUIYBIJCMPGZFQYHHCDBVPLJHOVGFHFXCUDIVQQUQYLGZIGMXPN: {
+    } = {};
+
+    export function addDummyComputor() {
+        computorIdMap[
+            "MSKFZNEKCTUIYBIJCMPGZFQYHHCDBVPLJHOVGFHFXCUDIVQQUQYLGZIGMXPN"
+        ] = {
             workers: {},
             totalHashrate: 0,
             score: 0,
@@ -77,8 +81,8 @@ export namespace ComputorIdManager {
             lastUpdateScoreTime: 0,
             solutionsFetched: [],
             submittedSolutions: {},
-        },
-    };
+        };
+    }
 
     export async function writeSolution(
         computorId: string,
