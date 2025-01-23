@@ -37,7 +37,7 @@ async function main() {
         SolutionManager.init();
         PaymentManager.init();
         await NodeManager.init(
-            process.env.NODE_IP as string,
+            process.env.NODE_IPS as string,
             process.env.SECRET_SEED as string
         );
         await QatumServer.createServer(Number(process.env.QATUM_PORT));

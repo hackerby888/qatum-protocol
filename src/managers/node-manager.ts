@@ -55,7 +55,7 @@ namespace NodeManager {
     let currentMiningSeed = "";
     //this seed is used to submit solution
     let currentSecretSeed = "";
-    let nodeIp = "";
+    let nodeIps: string[] = [];
     let gthreads = 0;
 
     export let difficulty = {
@@ -154,22 +154,30 @@ namespace NodeManager {
             LOG(type, msg);
         });
     }
-    export async function initToNodeSocket(ip: string) {
+    export async function initToNodeSocket() {
         try {
-            nodeIp = ip;
-            await new Promise((resolve, reject) => {
-                addon.initSocket(ip, (isOk: boolean) => {
-                    if (isOk) {
-                        resolve(undefined);
-                    } else {
-                        LOG(
-                            "error",
-                            "NodeManager.initToNodeSocket: failed to connect to node"
+            let canBreak = false;
+            while (true) {
+                if (canBreak) break;
+                try {
+                    await new Promise((resolve, reject) => {
+                        addon.initSocket(
+                            getRandomIpFromList(),
+                            (isOk: boolean) => {
+                                if (isOk) {
+                                    canBreak = true;
+                                    resolve(undefined);
+                                } else {
+                                    reject(new Error("failed to init socket"));
+                                }
+                            }
                         );
-                        Platform.exit(1);
-                    }
-                });
-            });
+                    });
+                } catch (e: any) {
+                    LOG("error", "NodeManager.initToNodeSocket: " + e.message);
+                    continue;
+                }
+            }
 
             await syncMiningSeed();
             watchMiningSeed();
@@ -269,8 +277,13 @@ namespace NodeManager {
         initVerifyThread(gthreads);
     }
 
-    export async function init(ip: string, secretSeed: string) {
+    export function getRandomIpFromList() {
+        return nodeIps[Math.floor(Math.random() * nodeIps.length)];
+    }
+
+    export async function init(ips: string, secretSeed: string) {
         LOG("node", "init node manager");
+        nodeIps = ips.split(",");
         loadFromDisk();
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
@@ -278,7 +291,7 @@ namespace NodeManager {
         initVerifyThread(
             Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
         );
-        await initToNodeSocket(ip);
+        await initToNodeSocket();
     }
 
     export async function sendSolution(
@@ -287,7 +300,7 @@ namespace NodeManager {
         computorId: string
     ): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            let ip = ComputorIdManager.getComputorId(computorId).ip || nodeIp;
+            let ip = getRandomIpFromList();
             if (!ip) {
                 return reject(new Error("ip to submit not found"));
             }
