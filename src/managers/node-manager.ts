@@ -73,23 +73,38 @@ namespace NodeManager {
                 `${DATA_PATH}/difficulty.json`,
                 JSON.stringify(difficulty)
             );
+
+            fs.writeFileSync(
+                `${DATA_PATH}/solutionsToSubmitQueue.json`,
+                JSON.stringify(solutionsToSubmitQueue)
+            );
         } catch (error) {
             LOG(
                 "error",
-                `NodeManager.saveToDisk: failed to save difficulty to disk ${error}`
+                `NodeManager.saveToDisk: failed to save difficulty or solutionsToSubmitQueue to disk ${error}`
             );
         }
     }
 
     export function loadFromDisk() {
         try {
-            let moduleData = JSON.parse(
+            let diskDifficulty = JSON.parse(
                 fs.readFileSync(`${DATA_PATH}/difficulty.json`, "utf-8")
             );
-            difficulty = moduleData;
+            let diskSolutionsToSubmitQueue = JSON.parse(
+                fs.readFileSync(
+                    `${DATA_PATH}/solutionsToSubmitQueue.json`,
+                    "utf-8"
+                )
+            );
+            difficulty = diskDifficulty;
+            solutionsToSubmitQueue = diskSolutionsToSubmitQueue;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `difficulty.json not found, creating new one`);
+                LOG(
+                    "sys",
+                    `difficulty.json or solutionsToSubmitQueue.json not found, creating new one`
+                );
             } else {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
             }
