@@ -168,6 +168,7 @@ namespace WorkerManager {
             hashrate: 0,
             solutions: [],
             lastActive: Date.now(),
+            startTimestamp: Date.now(),
         });
     }
 

@@ -118,37 +118,82 @@ namespace QatumDb {
         epoch: number,
         needToBeUnpaid: boolean = true,
         limit: number = 1,
-        useLimit: boolean = true
+        offset: number = 0,
+        wallet?: string
     ) {
         if (!database) return;
+        let useLimit = limit > 0;
         let payments: PaymentDbData[] = (await database
             .collection("payments")
             .find(
-                needToBeUnpaid
-                    ? {
-                          epoch,
-                          isPaid: false,
-                      }
-                    : { epoch },
+                {
+                    ...(wallet
+                        ? {
+                              wallet,
+                          }
+                        : {
+                              epoch,
+                          }),
+                    ...(needToBeUnpaid
+                        ? {
+                              isPaid: false,
+                          }
+                        : {}),
+                },
                 useLimit ? { limit } : {}
             )
+            .skip(offset)
+            .project({ _id: 0 })
             .toArray()) as unknown as PaymentDbData[];
-        let solutions: EpochDbData = (await database
-            .collection("epoch")
-            .findOne({ epoch })) as unknown as EpochDbData;
+
+        console.log({
+            ...(wallet
+                ? {
+                      wallet,
+                  }
+                : {
+                      epoch,
+                  }),
+            ...(needToBeUnpaid
+                ? {
+                      isPaid: false,
+                  }
+                : {}),
+        });
+        console.log(payments);
+        let solutions: EpochDbData[] = [];
+
+        if (!wallet) {
+            let epochData = (await database
+                .collection("epoch")
+                .findOne({ epoch })) as unknown as EpochDbData;
+            if (epochData) {
+                solutions.push(epochData);
+            }
+        } else {
+            for (let i = 0; i < payments.length; i++) {
+                let epochData = (await database.collection("epoch").findOne({
+                    epoch: payments[i].epoch,
+                })) as unknown as EpochDbData;
+                if (epochData) {
+                    solutions.push(epochData);
+                }
+            }
+        }
 
         if (!payments || !payments.length || !solutions) return [];
 
-        let isShareModeEpoch = payments[0].solutionsShare > 0;
-
         payments?.forEach((payment) => {
+            let isShareModeEpoch = payment.solutionsShare > 0;
+            let solutionValue = solutions.find(
+                (solution) => solution.epoch === payment.epoch
+            )?.solutionValue as number;
+            let shareValue = solutions.find(
+                (solution) => solution.epoch === payment.epoch
+            )?.shareValue as number;
             (payment as PaymentDbDataWithReward).reward = !isShareModeEpoch
-                ? Math.floor(
-                      payment.solutionsWritten * solutions?.solutionValue || 0
-                  )
-                : Math.floor(
-                      payment.solutionsShare * solutions?.shareValue || 0
-                  );
+                ? Math.floor(payment.solutionsWritten * solutionValue || 0)
+                : Math.floor(payment.solutionsShare * shareValue || 0);
         });
 
         return payments as PaymentDbDataWithReward[];

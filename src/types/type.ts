@@ -50,6 +50,7 @@ interface QWorker {
     hashrate: number;
     solutions: string[];
     lastActive: number;
+    startTimestamp: number;
 }
 
 interface QWorkerApi {
@@ -61,6 +62,7 @@ interface QWorkerApi {
     solutionsWritten: number;
     solutionsShare: number;
     lastActive: number;
+    startTimestamp: number;
 }
 
 interface PaymentQutilData {

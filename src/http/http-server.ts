@@ -8,6 +8,7 @@ import NodeManager from "../managers/node-manager";
 import QatumDb from "../database/db";
 import PaymentManager from "../managers/payment-manager";
 import { EpochDbData } from "../types/type";
+import ApiData from "../utils/qli-apis/global-data";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -134,7 +135,15 @@ namespace HttpServer {
         });
 
         app.get("/globalStats", (req, res) => {
-            res.send(WorkerManager.getGlobalStats());
+            res.send({
+                ...WorkerManager.getGlobalStats(),
+                isShareModeEpoch:
+                    NodeManager.difficulty.net !== NodeManager.difficulty.pool,
+                epoch: ComputorIdManager.ticksData.tickInfo.epoch,
+                estimatedIts: ApiData.estimatedIts,
+                solutionsPerHour: ApiData.solutionsPerHour,
+                solutionsPerHourEpoch: ApiData.solutionsPerHourEpoch,
+            });
         });
 
         app.get("/restartThread", (req, res) => {
@@ -253,12 +262,21 @@ namespace HttpServer {
 
         app.get("/payments", async (req, res) => {
             try {
-                let epoch = Number(req.query.epoch);
+                let wallet = req.query.wallet as string;
+                let limit = Number(req.query.limit);
+                let offset = Number(req.query.offset);
                 let needToBeUnpaid = req.query.needToBeUnpaid === "true";
+                console.log("wallet", wallet);
+                console.log("limit", limit);
+                console.log("offset", offset);
+                console.log("needToBeUnpaid", needToBeUnpaid);
                 res.send(
                     await QatumDb.getPaymentsAlongWithSolutionsValue(
-                        epoch,
-                        needToBeUnpaid
+                        -1,
+                        needToBeUnpaid,
+                        limit,
+                        offset,
+                        wallet
                     )
                 );
             } catch (error: any) {
