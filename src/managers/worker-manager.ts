@@ -297,6 +297,13 @@ namespace WorkerManager {
         QatumDb.insertRewardPayments(rewardPaymentsArray);
     }
 
+    export function getWalletFromWorkerId(workerId: string): string | null {
+        for (let [wallet, value] of workersMap.entries()) {
+            if (value.has(workerId)) return wallet;
+        }
+        return null;
+    }
+
     export function clearSolutionsForAllWallets() {
         workersMap.forEach((value, key) => {
             //delete wallet if no worker is active
