@@ -104,6 +104,10 @@ namespace WorkerManager {
                 let workers = 0;
                 let wallets = 0;
 
+                globalStats.solutionsShare = 0;
+                globalStats.solutionsVerified = 0;
+                globalStats.solutionsWritten = 0;
+
                 workersMap.forEach((value) => {
                     let hasAtleastOneActiveWorker = false;
                     value.forEach((worker) => {

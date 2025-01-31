@@ -269,7 +269,9 @@ namespace HttpServer {
                     });
                     return;
                 }
-                res.send(await QatumDb.getEpochSolutionValue(epoch));
+                let result = await QatumDb.getEpochSolutionValue(epoch);
+                if (result) res.send(result);
+                else res.send({});
             } catch (error: any) {
                 res.status(500).send({
                     error: error.message,
@@ -280,6 +282,9 @@ namespace HttpServer {
         app.post("/solutionData", (req, res) => {
             try {
                 let epochData = req.body as EpochDbData;
+                epochData.epoch = Number(epochData.epoch);
+                epochData.solutionValue = Number(epochData.solutionValue);
+                epochData.shareValue = Number(epochData.shareValue);
 
                 if (
                     isNaN(epochData.epoch) ||
@@ -303,10 +308,40 @@ namespace HttpServer {
                 });
             }
         });
-        app.post("/payments/system/pushEpoch", async (req, res) => {
+
+        app.get("/payments/system/epoch", async (req, res) => {
             try {
-                let epoch = Number(req.body.epoch);
-                PaymentManager.pushEpochToPay(epoch);
+                res.send({
+                    epochs: PaymentManager.getEpochsNeedToPay(),
+                });
+            } catch (error: any) {
+                res.status(500).send({
+                    error: error.message,
+                });
+            }
+        });
+
+        app.post("/payments/system/epoch", async (req, res) => {
+            try {
+                let epochs: {
+                    add: number[];
+                    remove: number[];
+                } = req.body.epochs;
+                if (!epochs) {
+                    res.status(400).send({
+                        error: "epochs is required",
+                    });
+                    return;
+                }
+
+                for (let epoch of epochs?.add || []) {
+                    PaymentManager.pushEpochToPay(epoch);
+                }
+
+                for (let epoch of epochs?.remove || []) {
+                    PaymentManager.removeEpochToPay(epoch);
+                }
+
                 res.send({ isOk: true });
             } catch (error: any) {
                 res.status(500).send({
@@ -316,8 +351,14 @@ namespace HttpServer {
         });
 
         app.get("/payments/system/enable", async (req, res) => {
+            res.send({
+                enable: PaymentManager.isPaymentEnabled(),
+            });
+        });
+
+        app.post("/payments/system/enable", async (req, res) => {
             try {
-                let enable = req.query.enable === "true";
+                let enable = req.body.enable;
                 if (enable) PaymentManager.enablePayment();
                 else PaymentManager.disablePayment();
                 res.send({
@@ -352,16 +393,34 @@ namespace HttpServer {
                 let wallet = req.query.wallet as string;
                 let limit = Number(req.query.limit);
                 let offset = Number(req.query.offset);
-                let needToBeUnpaid = req.query.needToBeUnpaid === "true";
-                res.send(
-                    await QatumDb.getPaymentsAlongWithSolutionsValue(
-                        -1,
-                        needToBeUnpaid,
-                        limit,
-                        offset,
-                        wallet
-                    )
-                );
+                let type = req.query.type as "all" | "paid" | "unpaid";
+                if (wallet) {
+                    res.send(
+                        await QatumDb.getPaymentsAlongWithSolutionsValue(
+                            -1,
+                            type,
+                            limit,
+                            offset,
+                            wallet
+                        )
+                    );
+                } else {
+                    let epoch = Number(req.query.epoch);
+                    if (isNaN(epoch)) {
+                        res.status(400).send({
+                            error: "epoch is required",
+                        });
+                        return;
+                    }
+                    res.send(
+                        await QatumDb.getPaymentsAlongWithSolutionsValue(
+                            epoch,
+                            type,
+                            limit,
+                            offset
+                        )
+                    );
+                }
             } catch (error: any) {
                 res.status(500).send({
                     error: error.message,

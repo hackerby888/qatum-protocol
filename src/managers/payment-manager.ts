@@ -8,12 +8,16 @@ import { qfetch } from "../utils/qfetch";
 
 namespace PaymentManager {
     let isEnablePayment = false;
-    let epochNeedTopPay: number[] = [];
+    let epochsNeedTopPay: number[] = [];
     const PAYMENT_LIMIT_AT_A_TIME = 25;
 
     export function init() {
         enablePayment();
         watchAndPay();
+    }
+
+    export function getEpochsNeedToPay() {
+        return epochsNeedTopPay;
     }
 
     export function enablePayment() {
@@ -29,8 +33,19 @@ namespace PaymentManager {
     }
 
     export function pushEpochToPay(epoch: number) {
-        if (!epochNeedTopPay.includes(epoch)) {
-            epochNeedTopPay.push(epoch);
+        if (!epochsNeedTopPay.includes(epoch)) {
+            epochsNeedTopPay.push(epoch);
+        }
+    }
+
+    export function removeEpochToPay(epoch: number) {
+        if (epochsNeedTopPay.includes(epoch)) {
+            epochsNeedTopPay = epochsNeedTopPay.filter((e) => e !== epoch);
+
+            LOG(
+                "wallet",
+                `removed epoch ${epoch} from payment list, remaining ${epochsNeedTopPay.length} epochs`
+            );
         }
     }
 
@@ -78,15 +93,15 @@ namespace PaymentManager {
                 if (
                     isEnablePayment &&
                     !isProcessing &&
-                    epochNeedTopPay.length
+                    epochsNeedTopPay.length
                 ) {
                     isProcessing = true;
-                    let epoch = epochNeedTopPay[0];
+                    let epoch = epochsNeedTopPay[0];
 
                     let payment =
                         await QatumDb.getPaymentsAlongWithSolutionsValue(
                             epoch,
-                            true,
+                            "unpaid",
                             PAYMENT_LIMIT_AT_A_TIME
                         );
 
@@ -151,7 +166,7 @@ namespace PaymentManager {
 
                     //paid all payments in this epoch
                     if (!payment || payment.length < PAYMENT_LIMIT_AT_A_TIME) {
-                        epochNeedTopPay.shift();
+                        removeEpochToPay(epoch);
                     }
 
                     isProcessing = false;

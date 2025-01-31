@@ -543,6 +543,7 @@ export namespace ComputorIdManager {
         workerUuid: string,
         newHashrate: number
     ) {
+        if (!getComputorId(computorId)) return;
         let previousHashrate =
             getComputorId(computorId).workers[workerUuid] || 0;
         getComputorId(computorId).workers[workerUuid] = newHashrate;

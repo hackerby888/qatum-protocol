@@ -116,8 +116,8 @@ namespace QatumDb {
 
     export async function getPaymentsAlongWithSolutionsValue(
         epoch: number,
-        needToBeUnpaid: boolean = true,
-        limit: number = 1,
+        type: "all" | "paid" | "unpaid" = "all",
+        limit: number = 0,
         offset: number = 0,
         wallet?: string
     ) {
@@ -134,9 +134,13 @@ namespace QatumDb {
                         : {
                               epoch,
                           }),
-                    ...(needToBeUnpaid
+                    ...(type === "unpaid"
                         ? {
                               isPaid: false,
+                          }
+                        : type === "paid"
+                        ? {
+                              isPaid: true,
                           }
                         : {}),
                 },
@@ -146,21 +150,6 @@ namespace QatumDb {
             .project({ _id: 0 })
             .toArray()) as unknown as PaymentDbData[];
 
-        console.log({
-            ...(wallet
-                ? {
-                      wallet,
-                  }
-                : {
-                      epoch,
-                  }),
-            ...(needToBeUnpaid
-                ? {
-                      isPaid: false,
-                  }
-                : {}),
-        });
-        console.log(payments);
         let solutions: EpochDbData[] = [];
 
         if (!wallet) {
