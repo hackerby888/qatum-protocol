@@ -6,6 +6,9 @@ export default async function syncAvgScore() {
         let data = await qliFetch("https://api.qubic.li/Score/Get");
         if (!isNaN(data?.averageScore)) {
             ApiData.avgScore = data?.averageScore;
+            ApiData.estimatedIts = data?.estimatedIts;
+            ApiData.solutionsPerHour = data?.solutionsPerHour;
+            ApiData.solutionsPerHourEpoch = data?.solutionsPerHourCalculated;
             return data?.averageScore;
         }
 

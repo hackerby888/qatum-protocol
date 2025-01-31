@@ -104,6 +104,10 @@ namespace WorkerManager {
                 let workers = 0;
                 let wallets = 0;
 
+                globalStats.solutionsShare = 0;
+                globalStats.solutionsVerified = 0;
+                globalStats.solutionsWritten = 0;
+
                 workersMap.forEach((value) => {
                     let hasAtleastOneActiveWorker = false;
                     value.forEach((worker) => {
@@ -168,6 +172,7 @@ namespace WorkerManager {
             hashrate: 0,
             solutions: [],
             lastActive: Date.now(),
+            startTimestamp: Date.now(),
         });
     }
 
@@ -294,6 +299,13 @@ namespace WorkerManager {
             rewardPaymentsArray.push(reward[wallet]);
         }
         QatumDb.insertRewardPayments(rewardPaymentsArray);
+    }
+
+    export function getWalletFromWorkerId(workerId: string): string | null {
+        for (let [wallet, value] of workersMap.entries()) {
+            if (value.has(workerId)) return wallet;
+        }
+        return null;
     }
 
     export function clearSolutionsForAllWallets() {

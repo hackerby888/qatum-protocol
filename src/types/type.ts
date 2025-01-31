@@ -1,6 +1,6 @@
 import net from "net";
 
-type QatumSocket = net.Socket & {
+export type QatumSocket = net.Socket & {
     isConnected: boolean;
     randomUUID: string;
     computorId: string;
@@ -8,7 +8,7 @@ type QatumSocket = net.Socket & {
     worker: string;
 };
 
-interface Transaction {
+export interface Transaction {
     sourceId: string;
     destId: string;
     amount: string;
@@ -20,39 +20,40 @@ interface Transaction {
     txId: string;
 }
 
-interface SolutionData {
+export interface SolutionData {
     nonce: string;
     miningSeed: string;
 }
 
-interface Solution {
+export interface Solution {
     seed: string;
     nonce: string;
     computorId: string;
     md5Hash: string;
 }
 
-interface SolutionResult {
+export interface SolutionResult {
     md5Hash: string;
     resultScore: number;
 }
 
-type SolutionNetState = Solution & {
+export type SolutionNetState = Solution & {
     resultScore: number;
     isSolution: boolean;
     isWritten: boolean;
     isShare: boolean;
 };
 
-interface QWorker {
+export interface QWorker {
     name: string;
     isActive: boolean;
     hashrate: number;
     solutions: string[];
     lastActive: number;
+    startTimestamp: number;
 }
 
-interface QWorkerApi {
+export interface QWorkerApi {
     name: string;
     isActive: boolean;
     hashrate: number;
@@ -61,14 +62,15 @@ interface QWorkerApi {
     solutionsWritten: number;
     solutionsShare: number;
     lastActive: number;
+    startTimestamp: number;
 }
 
-interface PaymentQutilData {
+export interface PaymentQutilData {
     id: string;
     amount: number;
 }
 
-interface PaymentDbData {
+export interface PaymentDbData {
     solutionsShare: number;
     solutionsVerified: number;
     solutionsWritten: number;
@@ -79,27 +81,73 @@ interface PaymentDbData {
     txId: string | null;
 }
 
-type PaymentDbDataWithReward = PaymentDbData & {
+export type PaymentDbDataWithReward = PaymentDbData & {
     reward: number;
 };
 
-interface EpochDbData {
+export interface EpochDbData {
     epoch: number;
     solutionValue: number;
     shareValue: number;
 }
 
-export {
-    QatumSocket,
-    Transaction,
-    SolutionData,
-    Solution,
-    SolutionResult,
-    QWorker,
-    QWorkerApi,
-    SolutionNetState,
-    PaymentQutilData,
-    PaymentDbData,
-    EpochDbData,
-    PaymentDbDataWithReward,
-};
+export interface ComputorIdData {
+    workers: {
+        //socketUUID: hashrate
+        [key: string]: number | undefined;
+    };
+    totalHashrate: number;
+    score: number;
+    bcscore: number;
+    mining: boolean;
+    followingAvgScore: boolean;
+    targetScore: number | undefined;
+    ip: string;
+    lastUpdateScoreTime: number;
+    // we use map for faster access
+    submittedSolutions: {
+        [key: string]: {
+            isWrittenToBC: boolean;
+            submittedTime: number;
+        };
+    };
+    solutionsFetched: SolutionData[];
+}
+
+export interface ComputorIdDataApi {
+    id: string;
+    workers: number;
+    totalHashrate: number;
+    score: number;
+    bcscore: number;
+    mining: boolean;
+    followingAvgScore: boolean;
+    targetScore: number | undefined;
+    ip: string;
+    lastUpdateScoreTime: number;
+    // we use map for faster access
+    submittedSolutions: {
+        isWrittenToBC: number;
+        total: number;
+    };
+    solutionsFetched: number;
+}
+
+export interface ComputorIdDataMap {
+    //ID
+    [key: string]: ComputorIdData;
+}
+
+export interface ComputorEditableFields {
+    mining?: boolean;
+    followingAvgScore?: boolean;
+    ip?: string;
+}
+
+export interface MiningConfig {
+    diffHashRateToBalance: number; // hashrate difference between highest - lowest to balance
+    diffSolutionToBalance: number; // solution difference between highest - lowest to balance
+    avgOverRate: number; // when our ids below avg score, we should mine to target score = avgScore * avgOverRate
+}
+
+export type PaymentDbState = "all" | "unpaid" | "paid";

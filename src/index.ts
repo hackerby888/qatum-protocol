@@ -33,6 +33,7 @@ async function main() {
             );
         }
         await ComputorIdManager.init();
+        ComputorIdManager.addDummyComputor();
         WorkerManager.init();
         SolutionManager.init();
         PaymentManager.init();

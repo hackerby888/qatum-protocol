@@ -3,7 +3,15 @@ import { DATA_PATH } from "../consts/path";
 import { THREE_MINUTES } from "../consts/time";
 import Platform from "../platform/exit";
 import QatumEvents from "../qatum/qatum-events";
-import { SolutionData, Transaction } from "../types/type";
+import {
+    ComputorEditableFields,
+    ComputorIdData,
+    ComputorIdDataApi,
+    ComputorIdDataMap,
+    MiningConfig,
+    SolutionData,
+    Transaction,
+} from "../types/type";
 import LOG from "../utils/logger";
 import { qfetch } from "../utils/qfetch";
 import fetchListIds from "../utils/qli-apis/fetch-list-ids";
@@ -24,7 +32,7 @@ interface TicksData {
     };
 }
 export namespace ComputorIdManager {
-    let miningConfig = {
+    let miningConfig: MiningConfig = {
         diffHashRateToBalance: 1000, // hashrate difference between highest - lowest to balance
         diffSolutionToBalance: 10, // solution difference between highest - lowest to balance
         avgOverRate: 1.06, // when our ids below avg score, we should mine to target score = avgScore * avgOverRate
@@ -36,34 +44,38 @@ export namespace ComputorIdManager {
 
     let emptyTicks: number[];
 
-    let lastSyncTick: number = 0;
+    let computorIdMap: ComputorIdDataMap = {};
 
-    let computorIdMap: {
-        //ID
-        [key: string]: {
-            workers: {
-                //socketUUID: hashrate
-                [key: string]: number | undefined;
-            };
-            totalHashrate: number;
-            score: number;
-            bcscore: number;
-            mining: boolean;
-            followingAvgScore: boolean;
-            targetScore: number | undefined;
-            alias: string;
-            ip: string;
-            lastUpdateScoreTime: number;
-            // we use map for faster access
-            submittedSolutions: {
-                [key: string]: {
-                    isWrittenToBC: boolean;
-                    submittedTime: number;
-                };
-            };
-            solutionsFetched: SolutionData[];
-        };
-    } = {};
+    export function toApiFormat() {
+        let apiData: ComputorIdDataApi[] = [];
+        for (let computorId in computorIdMap) {
+            apiData.push({
+                id: computorId,
+                workers: Object.keys(computorIdMap[computorId].workers).length,
+                totalHashrate: computorIdMap[computorId].totalHashrate,
+                score: computorIdMap[computorId].score,
+                bcscore: computorIdMap[computorId].bcscore,
+                mining: computorIdMap[computorId].mining,
+                followingAvgScore: computorIdMap[computorId].followingAvgScore,
+                targetScore: computorIdMap[computorId].targetScore,
+                ip: computorIdMap[computorId].ip,
+                lastUpdateScoreTime:
+                    computorIdMap[computorId].lastUpdateScoreTime,
+                submittedSolutions: {
+                    isWrittenToBC: Object.values(
+                        computorIdMap[computorId].submittedSolutions
+                    ).filter((s) => s.isWrittenToBC).length,
+                    total: Object.keys(
+                        computorIdMap[computorId].submittedSolutions
+                    ).length,
+                },
+                solutionsFetched:
+                    computorIdMap[computorId].solutionsFetched.length,
+            });
+        }
+
+        return apiData;
+    }
 
     export function addDummyComputor() {
         computorIdMap[
@@ -74,7 +86,7 @@ export namespace ComputorIdManager {
             score: 0,
             bcscore: 0,
             mining: true,
-            alias: "",
+
             ip: "82.197.173.132",
             followingAvgScore: false,
             targetScore: undefined,
@@ -531,6 +543,7 @@ export namespace ComputorIdManager {
         workerUuid: string,
         newHashrate: number
     ) {
+        if (!getComputorId(computorId)) return;
         let previousHashrate =
             getComputorId(computorId).workers[workerUuid] || 0;
         getComputorId(computorId).workers[workerUuid] = newHashrate;
@@ -704,29 +717,30 @@ export namespace ComputorIdManager {
         await fetchScoreV2();
     }
 
-    export function addComputorId(computorId: string, newSettings: any = {}) {
+    export function addComputorId(
+        computorId: string,
+        newSettings: ComputorEditableFields = {}
+    ) {
         if (computorIdMap[computorId]) return;
         computorIdMap[computorId] = {
             workers: {},
             totalHashrate: 0,
-            lscore: 0,
-            ascore: 0,
+            score: 0,
             bcscore: 0,
             mining: false,
             followingAvgScore: false,
             targetScore: undefined,
-            alias: "",
             ip: "",
             lastUpdateScoreTime: 0,
             solutionsFetched: [],
-            submittedSolutions: [],
+            submittedSolutions: {},
             ...newSettings,
         };
     }
 
     export function updateComputorId(
         computorId: string,
-        newSettings: any = {}
+        newSettings: ComputorEditableFields = {}
     ) {
         if (!computorIdMap[computorId]) return;
         computorIdMap[computorId] = {

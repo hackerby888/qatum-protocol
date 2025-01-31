@@ -7,7 +7,13 @@ import { SolutionManager } from "../managers/solution-manager";
 import NodeManager from "../managers/node-manager";
 import QatumDb from "../database/db";
 import PaymentManager from "../managers/payment-manager";
-import { EpochDbData } from "../types/type";
+import {
+    ComputorEditableFields,
+    ComputorIdDataApi,
+    EpochDbData,
+    MiningConfig,
+} from "../types/type";
+import ApiData from "../utils/qli-apis/global-data";
 
 namespace HttpServer {
     export async function createServer(httpPort: number) {
@@ -24,90 +30,149 @@ namespace HttpServer {
             try {
                 res.send(ComputorIdManager.getMiningConfig());
             } catch (e: any) {
-                res.status(500).send(e.message);
+                res.status(500).send({
+                    error: e.message,
+                });
             }
         });
 
-        app.put("/mining-config", (req, res) => {
+        app.post("/mining-config", (req, res) => {
             try {
-                let miningConfig: {
-                    diffHashRateToBalance: number;
-                    diffSolutionToBalance: number;
-                    avgOverRate: number;
-                } = req.body as any;
+                let miningConfig: MiningConfig = req.body as any;
+                if (!miningConfig) {
+                    res.status(400).send({
+                        error: "miningConfig is required",
+                    });
+                    return;
+                }
                 ComputorIdManager.setMiningConfig(miningConfig);
                 res.status(200).send({
                     isOk: true,
                 });
             } catch (e: any) {
-                res.status(500).send(e.message);
+                res.status(500).send({
+                    error: e.message,
+                });
+            }
+        });
+
+        app.get("/computor-id/detail", (req, res) => {
+            try {
+                let walletMap: {
+                    [wallet: string]: {
+                        workers: number;
+                        hashrate: number;
+                    };
+                } = {};
+
+                let computorId = req.query.computorId as string;
+
+                if (!computorId) {
+                    res.status(400).send({
+                        error: "computorId is required",
+                    });
+                    return;
+                }
+
+                let theComputorId = ComputorIdManager.getComputorId(computorId);
+
+                for (let workerId in theComputorId.workers) {
+                    let wallet = WorkerManager.getWalletFromWorkerId(workerId);
+                    if (wallet) {
+                        if (!walletMap[wallet])
+                            walletMap[wallet] = { workers: 0, hashrate: 0 };
+
+                        walletMap[wallet].workers++;
+                        walletMap[wallet].hashrate +=
+                            theComputorId.workers[workerId] || 0;
+                    }
+                }
+
+                let walletArray = Object.keys(walletMap).map((wallet) => {
+                    return {
+                        wallet,
+                        ...walletMap[wallet],
+                    };
+                });
+
+                res.status(200).send({
+                    walletArray,
+                });
+            } catch (e: any) {
+                res.status(500).send({
+                    error: e.message,
+                });
             }
         });
 
         app.get("/computor-ids", (req, res) => {
             try {
-                res.send(ComputorIdManager.getComputorIds());
+                res.send(ComputorIdManager.toApiFormat());
             } catch (e: any) {
-                res.status(500).send(e.message);
+                res.status(500).send({
+                    error: e.message,
+                });
             }
         });
 
-        app.post("/computor-id", async (req, res) => {
+        app.post("/computor-ids", async (req, res) => {
             try {
-                let computorId = req.body.computorId as string;
-                if (!computorId) {
-                    res.status(400).send("computorId is required");
+                let computorIds: ComputorIdDataApi[] = req.body.computorIds;
+
+                if (!computorIds) {
+                    res.status(400).send({
+                        error: "computorIds is required",
+                    });
                     return;
                 }
-                let settings: {
-                    ip?: string;
-                    mining?: boolean;
-                    followingAvgScore?: boolean;
-                } = req.body.settings || {};
-                ComputorIdManager.addComputorId(computorId, settings);
+
+                // we sort the computorIds by workers to make sure we always handle the delete after all
+                computorIds = computorIds.sort((a, b) => b.workers - a.workers);
+
+                for (let computorId of computorIds) {
+                    if (!computorId?.id) {
+                        continue;
+                    }
+                    //detect add
+                    if (!ComputorIdManager.getComputorId(computorId.id)) {
+                        ComputorIdManager.addComputorId(computorId.id, {
+                            mining: computorId.mining,
+                            followingAvgScore: computorId.followingAvgScore,
+                            ip: computorId.ip,
+                        });
+                        continue;
+                    }
+
+                    //detect delete .workers = -1 means delete
+                    if (computorId.workers === -1) {
+                        ComputorIdManager.removeComputorId(computorId.id);
+                        ComputorIdManager.syncNewComputorIdForSockets();
+                        continue;
+                    }
+
+                    //detect update
+                    let editableFields: ComputorEditableFields = {};
+                    if (computorId.mining !== undefined)
+                        editableFields.mining = computorId.mining;
+                    if (computorId.followingAvgScore !== undefined)
+                        editableFields.followingAvgScore =
+                            computorId.followingAvgScore;
+                    if (computorId.ip !== undefined)
+                        editableFields.ip = computorId.ip;
+                    ComputorIdManager.updateComputorId(
+                        computorId.id,
+                        editableFields
+                    );
+                    continue;
+                }
+
                 res.status(200).send({
                     isOk: true,
                 });
             } catch (e: any) {
-                res.status(500).send(e.message);
-            }
-        });
-
-        app.put("/computor-id", (req, res) => {
-            try {
-                let computorId = req.body.computorId as string;
-                if (!computorId) {
-                    res.status(400).send("computorId is required");
-                    return;
-                }
-                let settings: {
-                    ip?: string;
-                    mining?: boolean;
-                    followingAvgScore?: boolean;
-                } = req.body.settings || {};
-                ComputorIdManager.updateComputorId(computorId, settings);
-                res.status(200).send({
-                    isOk: true,
+                res.status(500).send({
+                    error: e.message,
                 });
-            } catch (e: any) {
-                res.status(500).send(e.message);
-            }
-        });
-
-        app.delete("/computor-id", (req, res) => {
-            try {
-                let computorId = req.body.computorId as string;
-                if (!computorId) {
-                    res.status(400).send("computorId is required");
-                    return;
-                }
-                ComputorIdManager.removeComputorId(computorId);
-                ComputorIdManager.syncNewComputorIdForSockets();
-                res.status(200).send({
-                    isOk: true,
-                });
-            } catch (e: any) {
-                res.status(500).send(e.message);
             }
         });
 
@@ -116,12 +181,16 @@ namespace HttpServer {
                 let wallet = req.query.wallet as string;
                 let needActive = req.query.needActive === "true";
                 if (!wallet) {
-                    res.status(400).send("wallet is required");
+                    res.status(400).send({
+                        error: "wallet is required",
+                    });
                     return;
                 }
                 res.send(WorkerManager.getWorkers(wallet, needActive, true));
             } catch (e: any) {
-                res.status(500).send(e.message);
+                res.status(500).send({
+                    error: e.message,
+                });
             }
         });
 
@@ -129,12 +198,23 @@ namespace HttpServer {
             try {
                 res.send(SolutionManager.toJson());
             } catch (e: any) {
-                res.status(500).send(e.message);
+                res.status(500).send({
+                    error: e.message,
+                });
             }
         });
 
         app.get("/globalStats", (req, res) => {
-            res.send(WorkerManager.getGlobalStats());
+            res.send({
+                ...WorkerManager.getGlobalStats(),
+                isShareModeEpoch:
+                    NodeManager.difficulty.net !== NodeManager.difficulty.pool,
+                epoch: ComputorIdManager.ticksData.tickInfo.epoch,
+                estimatedIts: ApiData.estimatedIts,
+                solutionsPerHour: ApiData.solutionsPerHour,
+                solutionsPerHourEpoch: ApiData.solutionsPerHourEpoch,
+                avgScore: ApiData.avgScore,
+            });
         });
 
         app.get("/restartThread", (req, res) => {
@@ -144,7 +224,9 @@ namespace HttpServer {
                     isOk: true,
                 });
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
@@ -156,7 +238,9 @@ namespace HttpServer {
                 };
 
                 if (!difficulty) {
-                    res.status(400).send("difficulty is required");
+                    res.status(400).send({
+                        error: "difficulty is required",
+                    });
                     return;
                 }
 
@@ -166,7 +250,9 @@ namespace HttpServer {
                     isOk: true,
                 });
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
@@ -178,25 +264,36 @@ namespace HttpServer {
             try {
                 let epoch = Number(req.query.epoch);
                 if (!epoch) {
-                    res.status(400).send("epoch is required");
+                    res.status(400).send({
+                        error: "epoch is required",
+                    });
                     return;
                 }
-                res.send(await QatumDb.getEpochSolutionValue(epoch));
+                let result = await QatumDb.getEpochSolutionValue(epoch);
+                if (result) res.send(result);
+                else res.send({});
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
         app.post("/solutionData", (req, res) => {
             try {
                 let epochData = req.body as EpochDbData;
+                epochData.epoch = Number(epochData.epoch);
+                epochData.solutionValue = Number(epochData.solutionValue);
+                epochData.shareValue = Number(epochData.shareValue);
 
                 if (
                     isNaN(epochData.epoch) ||
                     isNaN(epochData.solutionValue) ||
                     isNaN(epochData.shareValue)
                 ) {
-                    res.status(400).send("epochData is required");
+                    res.status(400).send({
+                        error: "epochData is required",
+                    });
                     return;
                 }
 
@@ -206,35 +303,71 @@ namespace HttpServer {
                     isOk: true,
                 });
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
-        app.post("/payments/system/pushEpoch", async (req, res) => {
+
+        app.get("/payments/system/epoch", async (req, res) => {
             try {
-                let epoch = Number(req.body.epoch);
-                PaymentManager.pushEpochToPay(epoch);
+                res.send({
+                    epochs: PaymentManager.getEpochsNeedToPay(),
+                });
+            } catch (error: any) {
+                res.status(500).send({
+                    error: error.message,
+                });
+            }
+        });
+
+        app.post("/payments/system/epoch", async (req, res) => {
+            try {
+                let epochs: {
+                    add: number[];
+                    remove: number[];
+                } = req.body.epochs;
+                if (!epochs) {
+                    res.status(400).send({
+                        error: "epochs is required",
+                    });
+                    return;
+                }
+
+                for (let epoch of epochs?.add || []) {
+                    PaymentManager.pushEpochToPay(epoch);
+                }
+
+                for (let epoch of epochs?.remove || []) {
+                    PaymentManager.removeEpochToPay(epoch);
+                }
+
                 res.send({ isOk: true });
             } catch (error: any) {
-                res.status(500).send(
-                    "Error while pushing epoch to system payments: " +
-                        error.message
-                );
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
         app.get("/payments/system/enable", async (req, res) => {
+            res.send({
+                enable: PaymentManager.isPaymentEnabled(),
+            });
+        });
+
+        app.post("/payments/system/enable", async (req, res) => {
             try {
-                let enable = req.query.enable === "true";
+                let enable = req.body.enable;
                 if (enable) PaymentManager.enablePayment();
                 else PaymentManager.disablePayment();
                 res.send({
                     isOk: true,
                 });
             } catch (error: any) {
-                res.status(500).send(
-                    "Error while switch enability system payments: " +
-                        error.message
-                );
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
@@ -242,27 +375,56 @@ namespace HttpServer {
             try {
                 let epoch = Number(req.query.epoch);
                 if (isNaN(epoch)) {
-                    res.status(400).send("epoch is required");
+                    res.status(400).send({
+                        error: "epoch is required",
+                    });
                     return;
                 }
                 res.send(await QatumDb.getTotalSolutions(epoch));
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
         app.get("/payments", async (req, res) => {
             try {
-                let epoch = Number(req.query.epoch);
-                let needToBeUnpaid = req.query.needToBeUnpaid === "true";
-                res.send(
-                    await QatumDb.getPaymentsAlongWithSolutionsValue(
-                        epoch,
-                        needToBeUnpaid
-                    )
-                );
+                let wallet = req.query.wallet as string;
+                let limit = Number(req.query.limit);
+                let offset = Number(req.query.offset);
+                let type = req.query.type as "all" | "paid" | "unpaid";
+                if (wallet) {
+                    res.send(
+                        await QatumDb.getPaymentsAlongWithSolutionsValue(
+                            -1,
+                            type,
+                            limit,
+                            offset,
+                            wallet
+                        )
+                    );
+                } else {
+                    let epoch = Number(req.query.epoch);
+                    if (isNaN(epoch)) {
+                        res.status(400).send({
+                            error: "epoch is required",
+                        });
+                        return;
+                    }
+                    res.send(
+                        await QatumDb.getPaymentsAlongWithSolutionsValue(
+                            epoch,
+                            type,
+                            limit,
+                            offset
+                        )
+                    );
+                }
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
@@ -279,7 +441,9 @@ namespace HttpServer {
                     !paymentData.epoch ||
                     !paymentData.txId
                 ) {
-                    res.status(400).send("paymentData is required");
+                    res.status(400).send({
+                        error: "paymentData is required",
+                    });
                     return;
                 }
 
@@ -293,7 +457,9 @@ namespace HttpServer {
                     isOk: true,
                 });
             } catch (error: any) {
-                res.status(500).send(error.message);
+                res.status(500).send({
+                    error: error.message,
+                });
             }
         });
 
