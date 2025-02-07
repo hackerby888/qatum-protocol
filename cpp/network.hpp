@@ -20,7 +20,7 @@
 #include <vector>
 #include "helper.hpp"
 #include <thread>
-
+#include "logger.hpp"
 #define ZERO _mm256_setzero_si256()
 #define MESSAGE_TYPE_SOLUTION 0
 #define REQUEST_SYSTEM_INFO 46
@@ -275,13 +275,13 @@ struct Socket
 
         if (inet_pton(AF_INET, nodeIp, &addr.sin_addr) <= 0)
         {
-            printf("Error translating command line ip address to usable one.");
+            log("error", "error translating command line ip address to usable one.");
             return -1;
         }
 
         if (::connect(serverSocket, (const sockaddr *)&addr, sizeof(addr)) < 0)
         {
-            printf("Fail to connect to %d.%d.%d.%d (%d)!\n", addr.sin_addr.S_un.S_un_b.s_b1, addr.sin_addr.S_un.S_un_b.s_b2, addr.sin_addr.S_un.S_un_b.s_b3, addr.sin_addr.S_un.S_un_b.s_b4, WSAGetLastError());
+            log("error", "error connecting to node " + string(nodeIp) + " on port " + to_string(nodePort));
             close();
             return -1;
         }

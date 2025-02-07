@@ -1,21 +1,21 @@
 import { md5 } from "hash-wasm";
 import { DATA_PATH } from "../consts/path";
-import { THREE_MINUTES } from "../consts/time";
-import Platform from "../platform/exit";
+import { ONE_SECOND, THREE_MINUTES } from "../consts/time";
+import Platform from "../platform/platform";
 import QatumEvents from "../qatum/qatum-events";
 import {
     ComputorEditableFields,
-    ComputorIdData,
     ComputorIdDataApi,
     ComputorIdDataMap,
     MiningConfig,
+    Solution,
     SolutionData,
+    TickData,
+    TickInfo,
     Transaction,
 } from "../types/type";
 import LOG from "../utils/logger";
 import { qfetch } from "../utils/qfetch";
-import fetchListIds from "../utils/qli-apis/fetch-list-ids";
-import fetchScore from "../utils/qli-apis/fetch-score";
 import ApiData from "../utils/qli-apis/global-data";
 import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
@@ -23,14 +23,10 @@ import fs from "fs";
 import { SolutionManager } from "./solution-manager";
 import qliFetch from "../utils/qli-apis/qli-fetch";
 import WorkerManager from "./worker-manager";
-interface TicksData {
-    tickInfo: {
-        tick: number;
-        duration: number;
-        epoch: number;
-        initialTick: number;
-    };
-}
+import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
+import { wait } from "../utils/wait";
+import Explorer from "../utils/explorer";
+
 export namespace ComputorIdManager {
     let miningConfig: MiningConfig = {
         diffHashRateToBalance: 1000, // hashrate difference between highest - lowest to balance
@@ -38,13 +34,16 @@ export namespace ComputorIdManager {
         avgOverRate: 1.06, // when our ids below avg score, we should mine to target score = avgScore * avgOverRate
     };
 
-    let currentEpoch: number = 0;
-
-    export let ticksData: TicksData;
-
-    let emptyTicks: number[];
-
     let computorIdMap: ComputorIdDataMap = {};
+
+    let currentEpoch: number = 0;
+    export let ticksData: TickInfo;
+    let lastTick = 0;
+
+    let isFetchingScore = false;
+    let fetchingTimes = 1;
+
+    let isDiskLoaded = false;
 
     export function toApiFormat() {
         let apiData: ComputorIdDataApi[] = [];
@@ -86,7 +85,6 @@ export namespace ComputorIdManager {
             score: 0,
             bcscore: 0,
             mining: true,
-
             ip: "82.197.173.132",
             followingAvgScore: false,
             targetScore: undefined,
@@ -96,16 +94,37 @@ export namespace ComputorIdManager {
         };
     }
 
-    export async function writeSolution(
+    export function writeSolution(
         computorId: string,
         nonce: string,
         miningSeed: string
     ) {
-        if (computorIdMap[computorId])
-            computorIdMap[computorId].submittedSolutions[miningSeed + nonce] = {
-                isWrittenToBC: false,
-                submittedTime: Date.now(),
-            };
+        if (!computorIdMap[computorId]) {
+            return false;
+        }
+
+        //check if this solution is written before
+        if (computorIdMap[computorId].submittedSolutions[miningSeed + nonce]) {
+            return false;
+        }
+
+        if (
+            computorIdMap[computorId].solutionsFetched.find((solution, _) => {
+                return (
+                    solution.miningSeed === miningSeed &&
+                    solution.nonce === nonce
+                );
+            })
+        ) {
+            return false;
+        }
+
+        computorIdMap[computorId].submittedSolutions[miningSeed + nonce] = {
+            isWrittenToBC: false,
+            submittedTime: Date.now(),
+        };
+
+        return true;
     }
 
     export function deleteAllWorkersForAllComputorId(cloneComputorIdMap: any) {
@@ -121,6 +140,7 @@ export namespace ComputorIdManager {
         epoch?: number,
         needToDeleteWorkers: boolean = true
     ) {
+        if (!isDiskLoaded) return;
         let clone = structuredClone(computorIdMap);
         deleteAllWorkersForAllComputorId(clone);
 
@@ -164,12 +184,15 @@ export namespace ComputorIdManager {
                     )
                     .toString()
             );
+
+            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
                     `computorIdMap-${candicateEpoch}.json not found, creating new one`
                 );
+                isDiskLoaded = true;
             } else {
                 LOG(
                     "error",
@@ -214,11 +237,10 @@ export namespace ComputorIdManager {
             Platform.exit(1);
         }
         loadFromDisk();
-        await setScoreForAllComputorId();
         await syncAvgScore();
+        await fetchScoreV2();
         setInterval(async () => {
             try {
-                await setScoreForAllComputorId();
                 await syncAvgScore();
                 checkAndRemoveIfTargetScoreReached();
 
@@ -229,6 +251,14 @@ export namespace ComputorIdManager {
                 LOG("error", "ComputorIdManager.init: " + error.message);
             }
         }, THREE_MINUTES);
+
+        setInterval(async () => {
+            await fetchScoreV2(
+                true,
+                fetchingTimes % (THREE_MINUTES / (ONE_SECOND * 10)) === 0
+            );
+            fetchingTimes++;
+        }, ONE_SECOND * 10);
     }
 
     export function createRandomIdWithMaxTotalHashrate(
@@ -562,59 +592,103 @@ export namespace ComputorIdManager {
 
     export async function resetComputorData() {
         for (let computorId in computorIdMap) {
-            computorIdMap[computorId].score = 0;
-            computorIdMap[computorId].bcscore = 0;
-            computorIdMap[computorId].lastUpdateScoreTime = 0;
-            computorIdMap[computorId].solutionsFetched = [];
-            computorIdMap[computorId].submittedSolutions = {};
+            getComputorId(computorId).score = 0;
+            getComputorId(computorId).bcscore = 0;
+            getComputorId(computorId).lastUpdateScoreTime = 0;
+            getComputorId(computorId).solutionsFetched = [];
+            getComputorId(computorId).submittedSolutions = {};
         }
         resetTargetForAllComputorId();
     }
 
     async function syncTicksData() {
-        let localTicksData: TicksData = await qfetch(
-            `https://rpc.qubic.org/v1/tick-info`
-        ).then((data) => data.json());
+        let localTicksData: TickInfo = await Explorer.getTickInfo();
 
-        if (!isNaN(localTicksData.tickInfo.epoch)) {
+        if (!isNaN(localTicksData?.tickInfo?.epoch)) {
             ticksData = localTicksData;
         } else {
             throw new Error("failed to fetch ticks data");
         }
-    }
 
-    async function syncEmptyTicks() {
-        let localEmptyTicks = await qfetch(
-            `https://rpc.qubic.org/v2/epochs/${ticksData.tickInfo.epoch}/empty-ticks?pageSize=100000`
-        )
-            .then((data) => data.json())
-            .then((data) => data.emptyTicks);
+        let localTicksData2 = await Explorer.getGeneralTickData();
 
-        if (Array.isArray(localEmptyTicks)) {
-            emptyTicks = localEmptyTicks;
-        } else {
-            throw new Error("failed to fetch empty ticks");
+        if (
+            !Array.isArray(localTicksData2?.ticks) ||
+            !((localTicksData2?.ticks as TickData[]).length > 0)
+        ) {
+            throw new Error("failed to fetch ticks data");
         }
+
+        ticksData.tickInfo.tick = localTicksData2.ticks[0].tickNumber;
     }
 
-    export async function fetchScoreV2(fromLastTick: boolean = false) {
-        let qliScores: {
-            scores: {
-                identity: string;
-                score: number;
-                adminScore: number;
-            }[];
-        };
+    // dont need this anymore, but keep it for future use
+    // async function syncEmptyTicks() {
+    //     let localEmptyTicks = await qfetch(
+    //         `https://rpc.qubic.org/v2/epochs/${ticksData.tickInfo.epoch}/empty-ticks?pageSize=100000`
+    //     )
+    //         .then((data) => data.json())
+    //         .then((data) => data.emptyTicks);
+
+    //     if (Array.isArray(localEmptyTicks)) {
+    //         emptyTicks = localEmptyTicks;
+    //     } else {
+    //         throw new Error("failed to fetch empty ticks");
+    //     }
+    // }
+
+    export function markSolutionAsWrittenToBC(
+        computorId: string,
+        miningSeed: string,
+        nonce: string
+    ) {
+        if (!getComputorId(computorId)) return;
+        if (!getComputorId(computorId).submittedSolutions[miningSeed + nonce])
+            return;
+        getComputorId(computorId).submittedSolutions[
+            miningSeed + nonce
+        ].isWrittenToBC = true;
+    }
+
+    export function pushToFetched(computorId: string, solution: SolutionData) {
+        if (!getComputorId(computorId)) return;
+        if (
+            getComputorId(computorId).solutionsFetched.find(
+                (s) =>
+                    s.miningSeed === solution.miningSeed &&
+                    s.nonce === solution.nonce
+            )
+        )
+            return;
+        getComputorId(computorId).solutionsFetched.push(solution);
+    }
+
+    export async function fetchScoreV2(
+        fromLastTick: boolean = false,
+        isSyncScore: boolean = false,
+        waitTillAvailable: boolean = false
+    ) {
+        if (waitTillAvailable && isFetchingScore) {
+            await new Promise((resolve) => {
+                let interval = setInterval(() => {
+                    if (!isFetchingScore) {
+                        clearInterval(interval);
+                        resolve(undefined);
+                    }
+                }, 500);
+            });
+        }
+        if (isFetchingScore) return;
+        isFetchingScore = true;
         try {
             await syncTicksData();
-            await syncEmptyTicks();
-            qliScores = await qliFetch(`https://api.qubic.li/Score/Get`);
         } catch (error: any) {
             LOG(
                 "error",
                 `ComputorIdManager.fetchScoreV2: ${error.message}, skip sync score`
             );
-            return;
+            isFetchingScore = false;
+            return await fetchScoreV2(fromLastTick, isSyncScore);
         }
 
         if (currentEpoch !== ticksData.tickInfo.epoch && currentEpoch !== 0) {
@@ -626,20 +700,46 @@ export namespace ComputorIdManager {
             ComputorIdManager.saveToDisk(currentEpoch, false);
             SolutionManager.saveToDisk(currentEpoch);
             SolutionManager.clearAllQueue();
+            ClusterSocketManager.resetSolutionsVerifiedForAll();
             await resetComputorData();
         }
 
         currentEpoch = ticksData.tickInfo.epoch;
 
         if (fromLastTick) {
-            //scan throw all ticks from last sync to current tick, get all solutions and update score ? does it faster than fetching all transactions of all computorId
+            //scan throught all ticks from last sync solutions to current tick
+            for (
+                let tick = lastTick + 1;
+                tick <= ticksData.tickInfo.tick;
+                tick++
+            ) {
+                let solutionsData = await Explorer.getSolutionsDataInTick(tick);
+                for (let solution of solutionsData) {
+                    pushToFetched(solution.computorId, {
+                        miningSeed: solution.seed,
+                        nonce: solution.nonce,
+                    });
+
+                    SolutionManager.trySetWritten(solution.md5Hash);
+
+                    markSolutionAsWrittenToBC(
+                        solution.computorId,
+                        solution.seed,
+                        solution.nonce
+                    );
+                }
+            }
+
+            //should only process when have latest solutions
+            await SolutionManager.processPendingToGetProcessQueue();
         } else {
             for (let computorId in computorIdMap) {
                 try {
-                    let data = await qfetch(
-                        `https://rpc.qubic.org/v2/identities/${computorId}/transfers?startTick=${ticksData.tickInfo.initialTick}&endTick=${ticksData.tickInfo.tick}`
+                    let data = await Explorer.getTransactionsOfAId(
+                        computorId,
+                        ticksData.tickInfo.initialTick,
+                        ticksData.tickInfo.tick
                     );
-
                     let transactions = (await data.json()).transactions as {
                         transactions: {
                             moneyFlew: boolean;
@@ -647,62 +747,52 @@ export namespace ComputorIdManager {
                         }[];
                     }[];
 
-                    let scores = 0;
                     let solutionsFetched: SolutionData[] = [];
                     for (let fatherTx of transactions) {
                         for (let tx of fatherTx.transactions) {
                             if (
-                                tx.transaction.inputType === 2 &&
                                 tx.transaction.sourceId === computorId &&
-                                !emptyTicks.includes(
-                                    tx.transaction.tickNumber
-                                ) &&
                                 tx.moneyFlew
                             ) {
-                                let miningSeed = tx.transaction.inputHex.slice(
-                                    0,
-                                    64
-                                );
-                                let nonce = tx.transaction.inputHex.slice(64);
+                                let solutionData =
+                                    Explorer.getSolutionDataFromTransaction(
+                                        tx.transaction
+                                    );
+
+                                if (!solutionData) continue;
 
                                 solutionsFetched.push({
-                                    miningSeed,
-                                    nonce,
+                                    miningSeed: solutionData.miningSeed,
+                                    nonce: solutionData.nonce,
                                 });
 
                                 let md5Hash = await md5(
-                                    miningSeed + nonce + computorId
+                                    solutionData.miningSeed +
+                                        solutionData.nonce +
+                                        computorId
                                 );
 
                                 SolutionManager.trySetWritten(md5Hash);
 
-                                if (
-                                    computorIdMap[computorId]
-                                        .submittedSolutions[miningSeed + nonce]
-                                ) {
-                                    computorIdMap[
-                                        computorId
-                                    ].submittedSolutions[
-                                        miningSeed + nonce
-                                    ].isWrittenToBC = true;
-                                }
-                                scores++;
+                                markSolutionAsWrittenToBC(
+                                    computorId,
+                                    solutionData.miningSeed,
+                                    solutionData.nonce
+                                );
                             }
                         }
                     }
 
-                    //we are using qli api to get score, because it's faster than fetching all transactions and check solutions
-                    computorIdMap[computorId].score =
-                        qliScores?.scores?.find(
-                            (s) => s.identity === computorId
-                        )?.score || 0;
-                    computorIdMap[computorId].bcscore =
-                        qliScores?.scores?.find(
-                            (s) => s.identity === computorId
-                        )?.adminScore || 0;
-                    computorIdMap[computorId].lastUpdateScoreTime = Date.now();
-                    computorIdMap[computorId].solutionsFetched =
-                        solutionsFetched;
+                    if (
+                        getComputorId(computorId).solutionsFetched.length === 0
+                    ) {
+                        getComputorId(computorId).solutionsFetched =
+                            solutionsFetched;
+                    } else {
+                        for (let solution of solutionsFetched) {
+                            pushToFetched(computorId, solution);
+                        }
+                    }
                 } catch (error: any) {
                     LOG(
                         "error",
@@ -710,6 +800,47 @@ export namespace ComputorIdManager {
                     );
                 }
             }
+        }
+
+        if (ticksData.tickInfo.tick > lastTick)
+            lastTick = ticksData.tickInfo.tick;
+
+        if (fromLastTick) {
+            if (isSyncScore) await syncScoreFromQli();
+        } else {
+            await syncScoreFromQli();
+        }
+
+        isFetchingScore = false;
+    }
+
+    export async function syncScoreFromQli() {
+        let qliScores: {
+            scores: {
+                identity: string;
+                score: number;
+                adminScore: number;
+            }[];
+        };
+
+        try {
+            qliScores = await qliFetch(`https://api.qubic.li/Score/Get`);
+
+            for (let computorId in computorIdMap) {
+                computorIdMap[computorId].score =
+                    qliScores?.scores?.find((s) => s.identity === computorId)
+                        ?.score || 0;
+                computorIdMap[computorId].bcscore =
+                    qliScores?.scores?.find((s) => s.identity === computorId)
+                        ?.adminScore || 0;
+                computorIdMap[computorId].lastUpdateScoreTime = Date.now();
+            }
+        } catch (error: any) {
+            LOG(
+                "error",
+                `ComputorIdManager.syncScoreFromQli: ${error.message}, skip sync score`
+            );
+            return await syncScoreFromQli();
         }
     }
 

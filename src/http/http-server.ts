@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request } from "express";
 import cors from "cors";
 import LOG from "../utils/logger";
 import { ComputorIdManager } from "../managers/computor-id-manger";
@@ -14,8 +14,35 @@ import {
     MiningConfig,
 } from "../types/type";
 import ApiData from "../utils/qli-apis/global-data";
+import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
+import jwt from "jsonwebtoken";
 
 namespace HttpServer {
+    function verifyTokenMiddleware(req: Request, res: any, next: any) {
+        try {
+            if (!req.headers.token) {
+                res.status(401).send({
+                    error: "token is required",
+                });
+                return;
+            }
+            let token = (req.headers.token as string).split(" ")[1] as string;
+            try {
+                jwt.verify(token, process.env.SECRET_SEED as string);
+            } catch (e: any) {
+                res.status(401).send({
+                    error: e.message,
+                });
+                return;
+            }
+
+            next();
+        } catch (e: any) {
+            res.status(500).send({
+                error: e.message,
+            });
+        }
+    }
     export async function createServer(httpPort: number) {
         const app = express();
         app.use(cors());
@@ -26,7 +53,59 @@ namespace HttpServer {
             res.send("Hello Qubic!");
         });
 
-        app.get("/mining-config", (req, res) => {
+        app.post("/login", (req, res) => {
+            try {
+                let user = req.body.user as string;
+                let password = req.body.password as string;
+                if (
+                    user !== process.env.ADMIN_USERNAME ||
+                    password !== process.env.ADMIN_PASSWORD
+                ) {
+                    res.status(401).send({
+                        error: "invalid username or password",
+                    });
+                    return;
+                }
+                const token = jwt.sign(
+                    { user: user },
+                    process.env.SECRET_SEED as string,
+                    {
+                        expiresIn: "24h",
+                    }
+                );
+                res.status(200).send({
+                    isOk: true,
+                    token,
+                });
+            } catch (e: any) {
+                res.status(500).send({
+                    error: e.message,
+                });
+            }
+        });
+
+        app.get("/cluster", verifyTokenMiddleware, (req, res) => {
+            res.send(ClusterSocketManager.toJson());
+        });
+
+        app.post(
+            "/cluster/clear-inactive",
+            verifyTokenMiddleware,
+            (req, res) => {
+                try {
+                    ClusterSocketManager.clearInactiveSockets();
+                    res.send({
+                        isOk: true,
+                    });
+                } catch (e: any) {
+                    res.status(500).send({
+                        error: e.message,
+                    });
+                }
+            }
+        );
+
+        app.get("/mining-config", verifyTokenMiddleware, (_, res) => {
             try {
                 res.send(ComputorIdManager.getMiningConfig());
             } catch (e: any) {
@@ -36,7 +115,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/mining-config", (req, res) => {
+        app.post("/mining-config", verifyTokenMiddleware, (req, res) => {
             try {
                 let miningConfig: MiningConfig = req.body as any;
                 if (!miningConfig) {
@@ -56,7 +135,7 @@ namespace HttpServer {
             }
         });
 
-        app.get("/computor-id/detail", (req, res) => {
+        app.get("/computor-id/detail", verifyTokenMiddleware, (req, res) => {
             try {
                 let walletMap: {
                     [wallet: string]: {
@@ -105,7 +184,7 @@ namespace HttpServer {
             }
         });
 
-        app.get("/computor-ids", (req, res) => {
+        app.get("/computor-ids", verifyTokenMiddleware, (req, res) => {
             try {
                 res.send(ComputorIdManager.toApiFormat());
             } catch (e: any) {
@@ -115,7 +194,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/computor-ids", async (req, res) => {
+        app.post("/computor-ids", verifyTokenMiddleware, async (req, res) => {
             try {
                 let computorIds: ComputorIdDataApi[] = req.body.computorIds;
 
@@ -129,6 +208,8 @@ namespace HttpServer {
                 // we sort the computorIds by workers to make sure we always handle the delete after all
                 computorIds = computorIds.sort((a, b) => b.workers - a.workers);
 
+                let haveAddComputorId = false;
+
                 for (let computorId of computorIds) {
                     if (!computorId?.id) {
                         continue;
@@ -140,13 +221,16 @@ namespace HttpServer {
                             followingAvgScore: computorId.followingAvgScore,
                             ip: computorId.ip,
                         });
+                        haveAddComputorId = true;
                         continue;
                     }
 
                     //detect delete .workers = -1 means delete
                     if (computorId.workers === -1) {
-                        ComputorIdManager.removeComputorId(computorId.id);
-                        ComputorIdManager.syncNewComputorIdForSockets();
+                        if (ComputorIdManager.getComputorId(computorId.id)) {
+                            ComputorIdManager.removeComputorId(computorId.id);
+                            ComputorIdManager.syncNewComputorIdForSockets();
+                        }
                         continue;
                     }
 
@@ -164,6 +248,10 @@ namespace HttpServer {
                         editableFields
                     );
                     continue;
+                }
+
+                if (haveAddComputorId) {
+                    await ComputorIdManager.fetchScoreV2(false, false, true);
                 }
 
                 res.status(200).send({
@@ -194,7 +282,36 @@ namespace HttpServer {
             }
         });
 
-        app.get("/solutions", (req, res) => {
+        app.post(
+            "/solutions/system/enable",
+            verifyTokenMiddleware,
+            (req, res) => {
+                try {
+                    let enable = req.body.enable;
+                    if (enable) SolutionManager.enable();
+                    else SolutionManager.disable();
+                    res.send({
+                        isOk: true,
+                    });
+                } catch (e: any) {
+                    res.status(500).send({
+                        error: e.message,
+                    });
+                }
+            }
+        );
+
+        app.get(
+            "/solutions/system/enable",
+            verifyTokenMiddleware,
+            (req, res) => {
+                res.send({
+                    enable: SolutionManager.getIsEnable(),
+                });
+            }
+        );
+
+        app.get("/solutions", verifyTokenMiddleware, (req, res) => {
             try {
                 res.send(SolutionManager.toJson());
             } catch (e: any) {
@@ -217,7 +334,7 @@ namespace HttpServer {
             });
         });
 
-        app.get("/restartThread", (req, res) => {
+        app.get("/restartThread", verifyTokenMiddleware, (req, res) => {
             try {
                 NodeManager.restartVerifyThread();
                 res.status(200).send({
@@ -230,7 +347,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/difficulty", (req, res) => {
+        app.post("/difficulty", verifyTokenMiddleware, (req, res) => {
             try {
                 let difficulty = req.body.difficulty as {
                     pool?: number;
@@ -256,11 +373,11 @@ namespace HttpServer {
             }
         });
 
-        app.get("/difficulty", (req, res) => {
+        app.get("/difficulty", verifyTokenMiddleware, (req, res) => {
             res.send(NodeManager.getDifficulty());
         });
 
-        app.get("/solutionData", async (req, res) => {
+        app.get("/solutionData", verifyTokenMiddleware, async (req, res) => {
             try {
                 let epoch = Number(req.query.epoch);
                 if (!epoch) {
@@ -279,7 +396,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/solutionData", (req, res) => {
+        app.post("/solutionData", verifyTokenMiddleware, (req, res) => {
             try {
                 let epochData = req.body as EpochDbData;
                 epochData.epoch = Number(epochData.epoch);
@@ -309,84 +426,104 @@ namespace HttpServer {
             }
         });
 
-        app.get("/payments/system/epoch", async (req, res) => {
-            try {
-                res.send({
-                    epochs: PaymentManager.getEpochsNeedToPay(),
-                });
-            } catch (error: any) {
-                res.status(500).send({
-                    error: error.message,
-                });
-            }
-        });
-
-        app.post("/payments/system/epoch", async (req, res) => {
-            try {
-                let epochs: {
-                    add: number[];
-                    remove: number[];
-                } = req.body.epochs;
-                if (!epochs) {
-                    res.status(400).send({
-                        error: "epochs is required",
+        app.get(
+            "/payments/system/epoch",
+            verifyTokenMiddleware,
+            async (req, res) => {
+                try {
+                    res.send({
+                        epochs: PaymentManager.getEpochsNeedToPay(),
                     });
-                    return;
-                }
-
-                for (let epoch of epochs?.add || []) {
-                    PaymentManager.pushEpochToPay(epoch);
-                }
-
-                for (let epoch of epochs?.remove || []) {
-                    PaymentManager.removeEpochToPay(epoch);
-                }
-
-                res.send({ isOk: true });
-            } catch (error: any) {
-                res.status(500).send({
-                    error: error.message,
-                });
-            }
-        });
-
-        app.get("/payments/system/enable", async (req, res) => {
-            res.send({
-                enable: PaymentManager.isPaymentEnabled(),
-            });
-        });
-
-        app.post("/payments/system/enable", async (req, res) => {
-            try {
-                let enable = req.body.enable;
-                if (enable) PaymentManager.enablePayment();
-                else PaymentManager.disablePayment();
-                res.send({
-                    isOk: true,
-                });
-            } catch (error: any) {
-                res.status(500).send({
-                    error: error.message,
-                });
-            }
-        });
-
-        app.get("/payments/totalSolutions", async (req, res) => {
-            try {
-                let epoch = Number(req.query.epoch);
-                if (isNaN(epoch)) {
-                    res.status(400).send({
-                        error: "epoch is required",
+                } catch (error: any) {
+                    res.status(500).send({
+                        error: error.message,
                     });
-                    return;
                 }
-                res.send(await QatumDb.getTotalSolutions(epoch));
-            } catch (error: any) {
-                res.status(500).send({
-                    error: error.message,
+            }
+        );
+
+        app.post(
+            "/payments/system/epoch",
+            verifyTokenMiddleware,
+            async (req, res) => {
+                try {
+                    let epochs: {
+                        add: number[];
+                        remove: number[];
+                    } = req.body.epochs;
+                    if (!epochs) {
+                        res.status(400).send({
+                            error: "epochs is required",
+                        });
+                        return;
+                    }
+
+                    for (let epoch of epochs?.add || []) {
+                        PaymentManager.pushEpochToPay(epoch);
+                    }
+
+                    for (let epoch of epochs?.remove || []) {
+                        PaymentManager.removeEpochToPay(epoch);
+                    }
+
+                    res.send({ isOk: true });
+                } catch (error: any) {
+                    res.status(500).send({
+                        error: error.message,
+                    });
+                }
+            }
+        );
+
+        app.get(
+            "/payments/system/enable",
+            verifyTokenMiddleware,
+            async (req, res) => {
+                res.send({
+                    enable: PaymentManager.isPaymentEnabled(),
                 });
             }
-        });
+        );
+
+        app.post(
+            "/payments/system/enable",
+            verifyTokenMiddleware,
+            async (req, res) => {
+                try {
+                    let enable = req.body.enable;
+                    if (enable) PaymentManager.enablePayment();
+                    else PaymentManager.disablePayment();
+                    res.send({
+                        isOk: true,
+                    });
+                } catch (error: any) {
+                    res.status(500).send({
+                        error: error.message,
+                    });
+                }
+            }
+        );
+
+        app.get(
+            "/payments/totalSolutions",
+            verifyTokenMiddleware,
+            async (req, res) => {
+                try {
+                    let epoch = Number(req.query.epoch);
+                    if (isNaN(epoch)) {
+                        res.status(400).send({
+                            error: "epoch is required",
+                        });
+                        return;
+                    }
+                    res.send(await QatumDb.getTotalSolutions(epoch));
+                } catch (error: any) {
+                    res.status(500).send({
+                        error: error.message,
+                    });
+                }
+            }
+        );
 
         app.get("/payments", async (req, res) => {
             try {
@@ -412,14 +549,17 @@ namespace HttpServer {
                         });
                         return;
                     }
-                    res.send(
-                        await QatumDb.getPaymentsAlongWithSolutionsValue(
-                            epoch,
-                            type,
-                            limit,
-                            offset
-                        )
-                    );
+
+                    verifyTokenMiddleware(req, res, async () => {
+                        res.send(
+                            await QatumDb.getPaymentsAlongWithSolutionsValue(
+                                epoch,
+                                type,
+                                limit,
+                                offset
+                            )
+                        );
+                    });
                 }
             } catch (error: any) {
                 res.status(500).send({
@@ -428,7 +568,7 @@ namespace HttpServer {
             }
         });
 
-        app.put("/payments", async (req, res) => {
+        app.put("/payments", verifyTokenMiddleware, async (req, res) => {
             try {
                 let paymentData = req.body as {
                     wallet: string;

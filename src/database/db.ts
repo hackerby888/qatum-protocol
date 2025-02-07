@@ -198,6 +198,20 @@ namespace QatumDb {
             .collection("payments")
             .updateMany({ wallet, epoch }, { $set: { isPaid: true, txId } });
     }
+
+    export async function markPaymentAsUnpaid(
+        wallet: string,
+        epoch: number,
+        txId: string | null = null
+    ) {
+        if (!database) return;
+        return await database
+            .collection("payments")
+            .updateMany(
+                { wallet, epoch },
+                { $set: { isPaid: false, txId: txId } }
+            );
+    }
 }
 
 export default QatumDb;
