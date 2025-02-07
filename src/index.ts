@@ -5,15 +5,19 @@ import { ComputorIdManager } from "./managers/computor-id-manger";
 import NodeManager from "./managers/node-manager";
 import fs from "fs";
 import { DATA_PATH } from "./consts/path";
-import Platform from "./platform/exit";
+import Platform from "./platform/platform";
 import { SolutionManager } from "./managers/solution-manager";
 import QatumServer from "./qatum/qatum-server";
-import VerificationClusterServer from "./verification-cluster/cluster-socket";
+import VerificationClusterServer from "./verification-cluster/cluster-server";
 import os from "os";
 import LOG from "./utils/logger";
 import WorkerManager from "./managers/worker-manager";
 import QatumDb from "./database/db";
 import PaymentManager from "./managers/payment-manager";
+import commandLineArgs from "command-line-args";
+
+const optionDefinitions = [{ name: "mode", alias: "m", type: String }];
+const options = commandLineArgs(optionDefinitions);
 
 function createDataPath() {
     if (!fs.existsSync(DATA_PATH)) {
@@ -23,7 +27,8 @@ function createDataPath() {
 
 async function main() {
     createDataPath();
-    if (process.env.MODE === "main") {
+    let mode = options.mode || process.env.MODE;
+    if (mode === "main") {
         if (process.env.MONGODB_URI) {
             await QatumDb.connectDB();
         } else {
@@ -33,10 +38,10 @@ async function main() {
             );
         }
         await ComputorIdManager.init();
-        ComputorIdManager.addDummyComputor();
         WorkerManager.init();
         SolutionManager.init();
         PaymentManager.init();
+        Platform.init();
         await NodeManager.init(
             process.env.NODE_IPS as string,
             process.env.SECRET_SEED as string
@@ -46,7 +51,7 @@ async function main() {
         await VerificationClusterServer.createServer(
             Number(process.env.CLUSTER_PORT)
         );
-    } else {
+    } else if (mode === "verify") {
         if (!process.env.CLUSTER_MAIN_SERVER) {
             LOG("error", "CLUSTER_MAIN_SERVER is not defined");
             Platform.exit(1);
@@ -59,6 +64,9 @@ async function main() {
         NodeManager.initVerifyThread(
             Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
         );
+    } else {
+        LOG("error", "mode is not defined");
+        Platform.exit(1);
     }
 }
 

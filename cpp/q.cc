@@ -96,20 +96,18 @@ private:
 class PaymentWorker : public AsyncWorker
 {
 public:
-    PaymentWorker(Function &callback, string paymentCsvString, string secretSeed)
-        : AsyncWorker(callback), paymentCsvString(paymentCsvString), secretSeed(secretSeed)
+    PaymentWorker(Function &callback, std::string paymentCsvString, std::string secretSeed, std::string ip)
+        : AsyncWorker(callback), paymentCsvString(paymentCsvString), secretSeed(secretSeed), ip(ip)
     {
-        memset(&result, 0, sizeof(QutilResult));
-
-        qsocket.connect(globalIp.c_str(), PORT) != -1;
-        currentTick = qsocket.getTickNumberFromNode();
     }
 
     ~PaymentWorker() {}
 
     void Execute() override
     {
-
+        memset(&result, 0, sizeof(QutilResult));
+        qsocket.connect(ip.c_str(), PORT) != -1;
+        currentTick = qsocket.getTickNumberFromNode();
         if (qsocket.isConnected && currentTick != 0)
         {
 
@@ -126,23 +124,24 @@ public:
 private:
     Socket qsocket;
     QutilResult result;
-    string paymentCsvString;
-    string secretSeed;
+    std::string paymentCsvString;
+    std::string secretSeed;
     uint32_t currentTick;
+    std::string ip;
 };
 
 class GetSeedWorker : public AsyncWorker
 {
 public:
-    GetSeedWorker(Function &callback)
-        : AsyncWorker(callback) {}
+    GetSeedWorker(Function &callback, std::string ip)
+        : AsyncWorker(callback), ip(ip) {}
 
     ~GetSeedWorker() {}
 
     void Execute() override
     {
         Socket qsocket;
-        bool connectOk = qsocket.connect(globalIp.c_str(), PORT) != -1;
+        bool connectOk = qsocket.connect(ip.c_str(), PORT) != -1;
 
         if (connectOk)
         {
@@ -179,6 +178,7 @@ public:
 
 private:
     std::string seedHex;
+    std::string ip;
 };
 
 class VerifySolutionWorker : public AsyncWorker
@@ -317,8 +317,9 @@ Napi::Value initSocket(const Napi::CallbackInfo &info)
 
 Napi::Value getMiningCurrentMiningSeed(const Napi::CallbackInfo &info)
 {
-    Function cb = info[0].As<Function>();
-    GetSeedWorker *wk = new GetSeedWorker(cb);
+    string ip = info[0].As<Napi::String>();
+    Function cb = info[1].As<Function>();
+    GetSeedWorker *wk = new GetSeedWorker(cb, ip);
     wk->Queue();
     return info.Env().Undefined();
 }
@@ -355,11 +356,12 @@ Napi::Value checkScore(const Napi::CallbackInfo &info)
 
 Napi::Value pay(const Napi::CallbackInfo &info)
 {
-    string paymentCsvString = info[0].As<Napi::String>().Utf8Value();
-    string secretSeed = info[1].As<Napi::String>().Utf8Value();
+    std::string ip = info[0].As<Napi::String>().Utf8Value();
+    std::string paymentCsvString = info[1].As<Napi::String>().Utf8Value();
+    std::string secretSeed = info[2].As<Napi::String>().Utf8Value();
 
-    Function cb = info[2].As<Function>();
-    PaymentWorker *wk = new PaymentWorker(cb, paymentCsvString, secretSeed);
+    Function cb = info[3].As<Function>();
+    PaymentWorker *wk = new PaymentWorker(cb, paymentCsvString, secretSeed, ip);
     wk->Queue();
     return info.Env().Undefined();
 }

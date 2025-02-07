@@ -7,20 +7,25 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "configure": "node-gyp configure",
         "build": "node-gyp build && npx tsc",
-        "start": "node ts-build/index.js"
+        "start": "node ts-build/index.js",
+        "start:verify": "node ts-build/index.js --mode verify"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "dependencies": {
+        "@types/command-line-args": "^5.2.3",
+        "@types/jsonwebtoken": "^9.0.8",
         "@types/mongodb": "^4.0.7",
         "bindings": "^1.5.0",
         "chalk": "^4.1.2",
+        "command-line-args": "^6.0.1",
         "cors": "^2.8.5",
         "dotenv": "^16.4.7",
         "express": "^4.21.2",
         "fetch-retry": "^6.0.0",
         "hash-wasm": "^4.12.0",
+        "jsonwebtoken": "^9.0.2",
         "mongodb": "^6.12.0",
         "node-addon-api": "^8.3.0"
     },
