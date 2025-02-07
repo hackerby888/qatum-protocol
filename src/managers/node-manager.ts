@@ -220,10 +220,9 @@ namespace NodeManager {
 
     export function watchAndSubmitSolution() {
         let isProcessing = false;
-        let submittedTimeL = 0;
         setInterval(async () => {
             if (isProcessing) return;
-            let solution = solutionsToSubmitQueue.shift();
+            let solution = solutionsToSubmitQueue[0];
             try {
                 isProcessing = true;
                 if (solution) {
@@ -233,7 +232,7 @@ namespace NodeManager {
                         solution.computorId
                     );
                     LOG("node", `solution submitted: ${solution.md5Hash}`);
-                    console.log(++submittedTimeL);
+                    solutionsToSubmitQueue.shift();
                 }
                 isProcessing = false;
             } catch (e: any) {
