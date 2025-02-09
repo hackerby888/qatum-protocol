@@ -84,6 +84,7 @@ namespace Explorer {
                                         solutionData.nonce +
                                         transaction.sourceId
                                 ),
+                                submittedAt: 0,
                             });
                     }
 

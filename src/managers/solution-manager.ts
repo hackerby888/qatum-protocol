@@ -13,6 +13,7 @@ import fs from "fs";
 import QatumDb from "../database/db";
 import { ComputorIdManager } from "./computor-id-manger";
 import WorkerManager from "./worker-manager";
+import { ONE_MINUTE } from "../consts/time";
 
 namespace SolutionManager {
     let solutionsPendingToGetProcessQueue: Map<
@@ -23,6 +24,9 @@ namespace SolutionManager {
     let solutionVerifyingQueue: Map<string, Solution> = new Map();
     let solutionClusterVerifyingQueue: Map<string, Solution> = new Map();
     let solutionVerifiedQueue: Map<string, SolutionNetState> = new Map();
+
+    let solutionClusterVerifyingQueueCounterMap: Map<string, boolean> =
+        new Map();
 
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
@@ -98,9 +102,11 @@ namespace SolutionManager {
             moduleData.solutionQueue = {
                 ...moduleData.solutionQueue,
                 ...moduleData.solutionVerifyingQueue,
+                ...moduleData.solutionClusterVerifyingQueue,
             };
 
             moduleData.solutionVerifyingQueue = {};
+            moduleData.solutionClusterVerifyingQueue = {};
 
             fs.writeFileSync(
                 `${DATA_PATH}/solutions-${process.env.MODE}-${
@@ -166,14 +172,25 @@ namespace SolutionManager {
                 addNSolutionToVerifying(needToPush);
             }
         }, 100);
+
+        //add to verifying queue from cluster queue again when it's not processed
+        setInterval(() => {
+            for (let [md5Hash, solution] of solutionClusterVerifyingQueue) {
+                if (solutionClusterVerifyingQueueCounterMap.has(md5Hash)) {
+                    solutionQueue.set(md5Hash, solution);
+                    solutionClusterVerifyingQueueCounterMap.delete(md5Hash);
+                    solutionClusterVerifyingQueue.delete(md5Hash);
+                } else {
+                    solutionClusterVerifyingQueueCounterMap.set(md5Hash, true);
+                }
+            }
+        }, ONE_MINUTE);
     }
 
-    export async function push(
-        seed: string,
-        nonce: string,
-        computorId: string
-    ) {
-        let md5Hash = await md5(seed + nonce + computorId);
+    export async function push(solution: Solution) {
+        let md5Hash = await md5(
+            solution.seed + solution.nonce + solution.computorId
+        );
         if (
             solutionQueue.has(md5Hash) ||
             solutionVerifyingQueue.has(md5Hash) ||
@@ -181,7 +198,13 @@ namespace SolutionManager {
             solutionClusterVerifyingQueue.has(md5Hash)
         )
             return null;
-        solutionQueue.set(md5Hash, { seed, nonce, computorId, md5Hash });
+        solutionQueue.set(md5Hash, {
+            seed: solution.seed,
+            nonce: solution.nonce,
+            computorId: solution.computorId,
+            md5Hash,
+            submittedAt: solution.submittedAt,
+        });
 
         return md5Hash;
     }
@@ -210,6 +233,7 @@ namespace SolutionManager {
             md5Hash,
             wallet,
             workerUUID,
+            submittedAt: Date.now(),
         });
 
         return true;
@@ -231,11 +255,7 @@ namespace SolutionManager {
                 continue;
             }
 
-            let md5Hash = await SolutionManager.push(
-                solution.seed,
-                solution.nonce,
-                solution.computorId
-            );
+            let md5Hash = await SolutionManager.push(solution as Solution);
 
             if (!md5Hash) {
                 continue;

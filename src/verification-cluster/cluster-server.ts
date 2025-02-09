@@ -8,6 +8,7 @@ import os from "os";
 import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
 import { randomUUID } from "crypto";
 import { ClusterSocketManager } from "./cluster-socket-manager";
+import { wait } from "../utils/wait";
 let threads = Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 namespace VerificationClusterServer {
     export async function createServer(port: number) {
@@ -44,6 +45,7 @@ namespace VerificationClusterServer {
                         jsonObj.numberOfSolutions as number,
                         true
                     );
+
                     socket.write(
                         JSON.stringify({
                             type: "get",
@@ -145,16 +147,12 @@ namespace VerificationClusterServer {
                         "cluster",
                         `pushing ${solution.md5Hash} solution to cluster`
                     );
-                    SolutionManager.push(
-                        solution.seed,
-                        solution.nonce,
-                        solution.computorId
-                    );
+                    SolutionManager.push(solution);
                 }
             }
         };
 
-        const onConnect = () => {
+        const onConnect = async () => {
             LOG(
                 "cluster",
                 "connected to cluster main server " + host + ":" + port
@@ -169,10 +167,15 @@ namespace VerificationClusterServer {
                 }) + QatumEvents.DELIMITER
             );
 
+            await wait(ONE_SECOND * 5);
+
             getSolutionIntervalId = setInterval(() => {
                 if (SolutionManager.getVerifyingLength() < threads * 2) {
                     let needToPush =
                         threads * 2 - SolutionManager.getVerifyingLength();
+
+                    if (!needToPush) return;
+
                     socket.write(
                         JSON.stringify({
                             type: "get",
@@ -186,6 +189,9 @@ namespace VerificationClusterServer {
                 if (SolutionManager.getVerifiedLength() > 0) {
                     let solutions =
                         SolutionManager.getVerifiedSolutionsResult() as SolutionNetState[];
+
+                    if (!solutions.length) return;
+
                     socket.write(
                         JSON.stringify({
                             type: "set",

@@ -84,6 +84,58 @@ namespace HttpServer {
             }
         });
 
+        app.get("/nodes", verifyTokenMiddleware, (req, res) => {
+            try {
+                res.send({
+                    nodeIps: NodeManager.nodeIps,
+                    nodeIpsInactive: NodeManager.nodeIpsInactive,
+                });
+            } catch (e: any) {
+                res.status(500).send({
+                    error: e.message,
+                });
+            }
+        });
+
+        app.post("/nodes", verifyTokenMiddleware, (req, res) => {
+            try {
+                let nodesData = req.body as {
+                    nodeIps: {
+                        add: string[];
+                        delete: string[];
+                    };
+                    nodeIpsInactive: {
+                        add: string[];
+                        delete: string[];
+                    };
+                };
+
+                for (let ip of nodesData.nodeIps.add) {
+                    NodeManager.pushNodeIp(ip);
+                }
+
+                for (let ip of nodesData.nodeIps.delete) {
+                    NodeManager.removeNodeIp(ip);
+                }
+
+                for (let ip of nodesData.nodeIpsInactive.add) {
+                    NodeManager.pushNodeIp(ip, "inactive");
+                }
+
+                for (let ip of nodesData.nodeIpsInactive.delete) {
+                    NodeManager.removeNodeIp(ip, "inactive");
+                }
+
+                res.status(200).send({
+                    isOk: true,
+                });
+            } catch (e: any) {
+                res.status(500).send({
+                    error: e.message,
+                });
+            }
+        });
+
         app.get("/cluster", verifyTokenMiddleware, (req, res) => {
             res.send(ClusterSocketManager.toJson());
         });

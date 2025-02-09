@@ -59,7 +59,9 @@ namespace NodeManager {
     let currentMiningSeed = "";
     //this seed is used to submit solution
     let currentSecretSeed = "";
-    let nodeIps: string[] = [];
+    export let nodeIps: string[] = [];
+    export let nodeIpsInactive: string[] = [];
+    let nodeIpsFailedMap: { [key: string]: number } = {};
     let gthreads = 0;
 
     let lastSuccessSyncSeed = Date.now();
@@ -122,6 +124,43 @@ namespace NodeManager {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
             }
         }
+    }
+
+    export function pushNodeIp(
+        nodeIp: string,
+        to: "active" | "inactive" = "active"
+    ) {
+        if (to === "active") {
+            if (!nodeIps.includes(nodeIp)) nodeIps.push(nodeIp);
+        } else if (to === "inactive") {
+            if (!nodeIpsInactive.includes(nodeIp)) nodeIpsInactive.push(nodeIp);
+        }
+    }
+
+    export function removeNodeIp(
+        nodeIp: string,
+        from: "active" | "inactive" = "active"
+    ) {
+        if (from === "active") {
+            nodeIps = nodeIps.filter((ip) => ip !== nodeIp);
+        } else if (from === "inactive") {
+            nodeIpsInactive = nodeIpsInactive.filter((ip) => ip !== nodeIp);
+        }
+    }
+
+    export function checkAndRemoveIpsIfInactive() {
+        let cloneNodeIps = [...nodeIps];
+        for (let i = 0; i < nodeIps.length; i++) {
+            let ip = nodeIps[i];
+            if (nodeIpsFailedMap[ip] > 10) {
+                LOG("warning", "node ip inactive: " + ip);
+                pushNodeIp(ip, "inactive");
+                cloneNodeIps = cloneNodeIps.filter((item) => item !== ip);
+            }
+        }
+
+        nodeIps = cloneNodeIps.length > 0 ? cloneNodeIps : [...nodeIpsInactive];
+        nodeIpsInactive = [];
     }
 
     export function setDifficulty(newDiff: { pool?: number; net?: number }) {
@@ -319,6 +358,7 @@ namespace NodeManager {
         nodeIps = ips.split(",").map((ip) => ip.trim());
         for (let i = 0; i < nodeIps.length; i++) {
             LOG("node", "using node ip: " + nodeIps[i]);
+            nodeIpsFailedMap[nodeIps[i]] = 0;
         }
         loadFromDisk();
         currentSecretSeed = secretSeed;
@@ -350,7 +390,7 @@ namespace NodeManager {
                     if (isOK) {
                         resolve(isOK);
                     } else {
-                        reject(isOK);
+                        reject(new Error("failed to send solution"));
                     }
                 }
             );
@@ -366,12 +406,15 @@ namespace NodeManager {
         while (true) {
             try {
                 if (canBreak) break;
+                let candicateIp = getRandomIpFromList();
                 await new Promise((resolve, reject) => {
                     addon.getMiningCurrentMiningSeed(
-                        getRandomIpFromList(),
+                        candicateIp,
                         async (newSeed: string) => {
                             if (newSeed === "-1") {
-                                await new Promise((resolve, reject) => {
+                                nodeIpsFailedMap[candicateIp]++;
+                                checkAndRemoveIpsIfInactive();
+                                await new Promise((resolve) => {
                                     setTimeout(() => {
                                         resolve(undefined);
                                     }, FIVE_SECONDS);
@@ -383,6 +426,7 @@ namespace NodeManager {
                             currentMiningSeed = newSeed;
                             canBreak = true;
                             lastSuccessSyncSeed = Date.now();
+                            nodeIpsFailedMap[candicateIp] = 0;
                             resolve(undefined);
                         }
                     );

@@ -386,11 +386,12 @@ export namespace ComputorIdManager {
     export function checkAndRemoveIfTargetScoreReached() {
         for (let computorId in computorIdMap) {
             if (
-                !isNaN(computorIdMap[computorId].targetScore as number) &&
-                computorIdMap[computorId].bcscore >=
-                    (computorIdMap[computorId].targetScore as number)
+                (!isNaN(getComputorId(computorId).targetScore as number) &&
+                    getComputorId(computorId).bcscore >=
+                        (getComputorId(computorId).targetScore as number)) ||
+                !getComputorId(computorId).mining
             ) {
-                computorIdMap[computorId].targetScore = undefined;
+                getComputorId(computorId).targetScore = undefined;
             }
         }
     }

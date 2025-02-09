@@ -86,7 +86,6 @@ export namespace ClusterSocketManager {
         try {
             if (!isDiskLoaded) return;
 
-            markAllDisconnected();
             fs.writeFileSync(
                 `${DATA_PATH}/cluster-sockets.json`,
                 JSON.stringify(socketMap)
@@ -102,6 +101,7 @@ export namespace ClusterSocketManager {
                 fs.readFileSync(`${DATA_PATH}/cluster-sockets.json`, "utf-8")
             );
             socketMap = socketMapJson;
+            markAllDisconnected();
             isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {

@@ -23,12 +23,6 @@ namespace Platform {
         ClusterSocketManager.saveToDisk();
         LOG("sys", "data saved to disk");
     }
-
-    export function init() {
-        setInterval(() => {
-            saveData();
-        }, THREE_MINUTES);
-    }
 }
 
 export default Platform;
