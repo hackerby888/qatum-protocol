@@ -4,14 +4,26 @@
 #define NOT_CALCULATED -127 // not yet calculated
 #define NULL_INDEX -2
 
+#if !(defined(__AVX512F__) || defined(__AVX2__))
+static_assert(false, "Either AVX2 or AVX512 is required.");
+#endif
+
+////////// Scoring algorithm \\\\\\\\\\
+
+#define NOT_CALCULATED -127 // not yet calculated
+#define NULL_INDEX -2
+
 template <
     unsigned long long dataLength,
     unsigned long long numberOfHiddenNeurons,
     unsigned long long numberOfNeighborNeurons,
     unsigned long long maxDuration,
-    unsigned long long numberOfOptimizationSteps>
+    unsigned long long numberOfOptimizationSteps,
+    unsigned long long solutionBufferCount>
 struct ScoreFunction
 {
+    typedef int neuron_t;
+
     static constexpr unsigned long long allNeuronsCount = dataLength + numberOfHiddenNeurons + dataLength;
     static constexpr unsigned long long computeNeuronsCount = numberOfHiddenNeurons + dataLength;
     static constexpr unsigned long long synapseSignsCount = (dataLength + numberOfHiddenNeurons + dataLength) * numberOfNeighborNeurons / 64;
@@ -21,12 +33,17 @@ struct ScoreFunction
     static constexpr const unsigned char skippedTickMaskBits = 1;
     static constexpr const unsigned char clearSkippedTickMaskBits = ~skippedTickMaskBits;
 
+#if defined(__AVX512F__)
+    static constexpr int BATCH_SIZE = 16;
+#else
+    static constexpr int BATCH_SIZE = 8;
+#endif
+    static_assert(maxDuration % BATCH_SIZE == 0, "maxDuration must be dividable by BATCH_SIZE ");
     static_assert(allNeuronsCount < 0xFFFFFFFF, "Current implementation only support MAX_UINT32 neuron");
     static_assert(numberOfNeighborNeurons < 0x7FFFFFFF, "Current implementation only support MAX_UINT32 number of neighbors");
     static_assert((allNeuronsCount * numberOfNeighborNeurons) % 64 == 0, "numberOfNeighborNeurons * allNeuronsCount must dividable by 64");
 
     long long miningData[dataLength];
-    unsigned long long solutionBufferCount;
 
     struct K12EngineX1
     {
@@ -143,30 +160,33 @@ struct ScoreFunction
         unsigned int supplierIndexWithSign;
     };
 
-    struct Neuron
-    {
-        char *input;
-    };
-    struct Synapse
-    {
-        // Pointer to data
-        unsigned long long *signs;
-    };
-
     struct computeBuffer
     {
+        struct Neuron
+        {
+            neuron_t *input;
+        };
+        struct Synapse
+        {
+            // Pointer to data
+            unsigned long long *signs;
+        };
         K12EngineX1 k12;
         Neuron _neurons;
         Synapse _synapses;
         PoolSynapseData *_poolSynapseData;
-        PoolSynapseData *_poolSynapseTickData;
         unsigned char *_poolRandom2Buffer;
+
+        unsigned short *_poolNeuronIndices;
+        unsigned short *_poolsupplierIndexWithSign;
 
         // Save skipped ticks
         long long *_skipTicks;
 
         // Map of skipped ticks
         unsigned char *_skipTicksMap;
+
+        unsigned char *_parBatches;
 
         // Contained all ticks possible value
         long long *_ticksNumbers;
@@ -178,6 +198,8 @@ struct ScoreFunction
     m256i currentRandomSeed;
     unsigned int randomXNeuronStart;
     unsigned int randomXOpStart;
+
+    volatile char solutionEngineLock[solutionBufferCount];
 
 #if USE_SCORE_CACHE
     volatile char scoreCacheLock;
@@ -202,11 +224,6 @@ struct ScoreFunction
         freeMemory();
     }
 
-    ScoreFunction(unsigned long long threads)
-    {
-        solutionBufferCount = threads;
-    }
-
     void freeMemory()
     {
         if (_computeBuffer)
@@ -223,6 +240,7 @@ struct ScoreFunction
                     freePool(_computeBuffer[i]._neurons.input);
                     _computeBuffer[i]._neurons.input = nullptr;
                 }
+
                 if (_computeBuffer[i]._synapses.signs)
                 {
                     freePool(_computeBuffer[i]._synapses.signs);
@@ -247,12 +265,6 @@ struct ScoreFunction
                     _computeBuffer[i]._skipTicksMap = nullptr;
                 }
 
-                if (_computeBuffer[i]._poolSynapseTickData)
-                {
-                    freePool(_computeBuffer[i]._poolSynapseTickData);
-                    _computeBuffer[i]._poolSynapseTickData = nullptr;
-                }
-
                 if (_computeBuffer[i]._poolSynapseData)
                 {
                     freePool(_computeBuffer[i]._poolSynapseData);
@@ -270,6 +282,24 @@ struct ScoreFunction
                     freePool(_computeBuffer[i]._curCachedNeurons);
                     _computeBuffer[i]._curCachedNeurons = nullptr;
                 }
+
+                if (_computeBuffer[i]._parBatches)
+                {
+                    freePool(_computeBuffer[i]._parBatches);
+                    _computeBuffer[i]._parBatches = nullptr;
+                }
+
+                if (_computeBuffer[i]._poolNeuronIndices)
+                {
+                    freePool(_computeBuffer[i]._poolNeuronIndices);
+                    _computeBuffer[i]._poolNeuronIndices = nullptr;
+                }
+
+                if (_computeBuffer[i]._poolsupplierIndexWithSign)
+                {
+                    freePool(_computeBuffer[i]._poolsupplierIndexWithSign);
+                    _computeBuffer[i]._poolsupplierIndexWithSign = nullptr;
+                }
             }
 
             freePool(_computeBuffer);
@@ -281,9 +311,8 @@ struct ScoreFunction
     {
         if (_computeBuffer == nullptr)
         {
-            if (!allocatePool(sizeof(computeBuffer) * solutionBufferCount, (void **)&_computeBuffer))
+            if (!allocPoolWithErrorLog(L"computeBuffer (score solution buffer)", sizeof(computeBuffer) * solutionBufferCount, (void **)&_computeBuffer, __LINE__))
             {
-                logToConsole(L"Failed to allocate memory for score solution buffer!");
                 return false;
             }
 
@@ -291,63 +320,63 @@ struct ScoreFunction
             {
                 auto &cb = _computeBuffer[bufId];
 
-                if (!allocatePool(RANDOM2_POOL_SIZE, (void **)&(cb._poolRandom2Buffer)))
+                if (!allocPoolWithErrorLog(L"poolRandom2Buffer (score pool buffer)", RANDOM2_POOL_SIZE, (void **)&(cb._poolRandom2Buffer), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for score pool buffer!");
                     return false;
                 }
 
-                if (!allocatePool(allNeuronsCount, (void **)&(cb._neurons.input)))
+                if (!allocPoolWithErrorLog(L"_parBatches", (maxDuration + BATCH_SIZE - 1) / BATCH_SIZE, (void **)&(cb._parBatches), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for neurons! Try to allocated ");
                     return false;
                 }
 
-                if (!allocatePool(synapseSignsCount * sizeof(unsigned long long), (void **)&(cb._synapses.signs)))
+                if (!allocPoolWithErrorLog(L"neurons.input", allNeuronsCount * sizeof(neuron_t), (void **)&(cb._neurons.input), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for synapses! Try to allocated ");
                     return false;
                 }
 
-                if (!allocatePool(RANDOM2_POOL_SIZE * sizeof(PoolSynapseData), (void **)&(cb._poolSynapseData)))
+                if (!allocPoolWithErrorLog(L"synapses.signs", synapseSignsCount * sizeof(unsigned long long), (void **)&(cb._synapses.signs), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for pool synapse data!");
                     return false;
                 }
 
-                if (!allocatePool(maxDuration * sizeof(PoolSynapseData), (void **)&(cb._poolSynapseTickData)))
+                if (!allocPoolWithErrorLog(L"poolSynapseData", RANDOM2_POOL_SIZE * sizeof(PoolSynapseData), (void **)&(cb._poolSynapseData), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for pool synapse data!");
                     return false;
                 }
 
-                if (!allocatePool(numberOfOptimizationSteps * sizeof(long long), (void **)&(cb._skipTicks)))
+                if (!allocPoolWithErrorLog(L"skipTicks", numberOfOptimizationSteps * sizeof(long long), (void **)&(cb._skipTicks), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for skip ticks buffer!");
                     return false;
                 }
 
-                if (!allocatePool(maxDuration * sizeof(long long), (void **)&(cb._ticksNumbers)))
+                if (!allocPoolWithErrorLog(L"ticksNumbers", maxDuration * sizeof(long long), (void **)&(cb._ticksNumbers), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for ticks number buffer!");
                     return false;
                 }
 
-                if (!allocatePool(maxDuration, (void **)&(cb._skipTicksMap)))
+                if (!allocPoolWithErrorLog(L"skipTicksMap", maxDuration, (void **)&(cb._skipTicksMap), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for ticks map buffer!");
                     return false;
                 }
 
-                if (!allocatePool(maxDuration, (void **)&(cb._prvCachedNeurons)))
+                if (!allocPoolWithErrorLog(L"prev cached neurons", maxDuration, (void **)&(cb._prvCachedNeurons), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for prev cached neurons!");
                     return false;
                 }
 
-                if (!allocatePool(maxDuration, (void **)&(cb._curCachedNeurons)))
+                if (!allocPoolWithErrorLog(L"cached neurons", maxDuration, (void **)&(cb._curCachedNeurons), __LINE__))
                 {
-                    logToConsole(L"Failed to allocate memory for cur cached neurons!");
+                    return false;
+                }
+
+                if (!allocPoolWithErrorLog(L"_poolNeuronIndices", maxDuration * sizeof(unsigned short), (void **)&(cb._poolNeuronIndices), __LINE__))
+                {
+                    return false;
+                }
+
+                if (!allocPoolWithErrorLog(L"_poolsupplierIndexWithSign", maxDuration * sizeof(unsigned short), (void **)&(cb._poolsupplierIndexWithSign), __LINE__))
+                {
                     return false;
                 }
             }
@@ -357,13 +386,13 @@ struct ScoreFunction
         {
             setMem(_computeBuffer[i]._synapses.signs, sizeof(_computeBuffer[i]._synapses.signs[0]) * synapseSignsCount, 0);
             setMem(_computeBuffer[i]._poolSynapseData, sizeof(_computeBuffer[i]._poolSynapseData[0]) * RANDOM2_POOL_SIZE, 0);
-            setMem(_computeBuffer[i]._poolSynapseTickData, sizeof(_computeBuffer[i]._poolSynapseTickData[0]) * maxDuration, 0);
             setMem(_computeBuffer[i]._neurons.input, sizeof(_computeBuffer[i]._neurons.input[0]) * allNeuronsCount, 0);
             setMem(_computeBuffer[i]._ticksNumbers, sizeof(_computeBuffer[i]._ticksNumbers[0]) * maxDuration, 0);
             setMem(_computeBuffer[i]._skipTicks, sizeof(_computeBuffer[i]._skipTicks[0]) * numberOfOptimizationSteps, 0);
             setMem(_computeBuffer[i]._skipTicksMap, sizeof(_computeBuffer[i]._skipTicksMap[0]) * maxDuration, 0);
             setMem(_computeBuffer[i]._prvCachedNeurons, sizeof(_computeBuffer[i]._prvCachedNeurons[0]) * maxDuration, 0);
             setMem(_computeBuffer[i]._curCachedNeurons, sizeof(_computeBuffer[i]._curCachedNeurons[0]) * maxDuration, 0);
+            solutionEngineLock[i] = 0;
         }
 
         unsigned int x = 0;
@@ -447,7 +476,12 @@ struct ScoreFunction
         return (threshold <= DATA_LENGTH) && (solutionScore >= (unsigned int)threshold);
     }
 
-    void computePoolSynapseData(const unsigned long long *pSynapseSigns, const unsigned char *pPoolBuffer, PoolSynapseData *pPoolSynapseData, PoolSynapseData *pPoolSynapseTick)
+    void computePoolSynapseData(
+        const unsigned long long *pSynapseSigns,
+        const unsigned char *pPoolBuffer,
+        PoolSynapseData *pPoolSynapseData,
+        unsigned short *pNeuronIdices,
+        unsigned short *pNeuronSupplier)
     {
         for (unsigned int i = 0; i < RANDOM2_POOL_SIZE; i++)
         {
@@ -476,51 +510,38 @@ struct ScoreFunction
         for (long long tick = 0; tick < maxDuration; tick++)
         {
             PoolSynapseData data = pPoolSynapseData[random2XVal & (RANDOM2_POOL_ACTUAL_SIZE - 1)];
-            pPoolSynapseTick[tick] = data;
+            pNeuronIdices[tick] = data.neuronIndex;
+            pNeuronSupplier[tick] = data.supplierIndexWithSign;
+
             random2XVal = random2XVal * 1664525 + 1013904223;
         }
     }
 
     unsigned int computeFullNeurons(
-        const PoolSynapseData *pPoolSynapseTick,
+        const unsigned short *pNeuronIdices,
+        const unsigned short *pNeuronSupplier,
         const unsigned char *skipTicksMap,
         unsigned char *curCachedNeurons,
-        Neuron &neurons)
+        unsigned char *batches,
+        computeBuffer::Neuron &neurons32)
     {
-        setMem(neurons.input, sizeof(neurons.input[0]) * allNeuronsCount, 0);
-        for (int i = 0; i < dataLength; i++)
+        return computeNeurons<false>(pNeuronIdices, pNeuronSupplier, skipTicksMap, curCachedNeurons, batches, neurons32);
+    }
+
+    void checkParallelBatch(
+        const unsigned short *pNeuronIdices,
+        const unsigned short *pNeuronSupplier,
+        unsigned char *pBatch)
+    {
+        int tickBatch = 0;
+        setMem(pBatch, sizeof(pBatch[0]) * (maxDuration + BATCH_SIZE - 1) / BATCH_SIZE, 0);
+        for (long long batch = 0; batch < maxDuration; batch += BATCH_SIZE, tickBatch++)
         {
-            neurons.input[i] = (char)miningData[i];
-        }
-        for (long long tick = 0; tick < maxDuration; tick++)
-        {
-            PoolSynapseData data = pPoolSynapseTick[tick];
-            unsigned int neuronIndex = data.neuronIndex;
-            unsigned int supplierNeuronIndex = (data.supplierIndexWithSign >> 1);
-            unsigned int sign = (data.supplierIndexWithSign & 1U);
-
-            char nnV = neurons.input[supplierNeuronIndex];
-            nnV = sign ? nnV : -nnV;
-
-            char oldNeuronValue = neurons.input[neuronIndex];
-            neurons.input[neuronIndex] += nnV;
-            clampNeuron(neurons.input[neuronIndex]);
-
-            if (skipTicksMap[tick] & candidateSkipTickMaskBits)
+            if (areElementsUnique(pNeuronIdices + batch, BATCH_SIZE) && !isAnyElementInBContainedInA(pNeuronIdices + batch, pNeuronSupplier + batch, BATCH_SIZE, 1))
             {
-                curCachedNeurons[tick] = (oldNeuronValue == neurons.input[neuronIndex]);
+                pBatch[tickBatch] = 1;
             }
         }
-
-        unsigned int score = 0;
-        for (unsigned int i = 0; i < dataLength; i++)
-        {
-            if (miningData[i] == neurons.input[dataLength + numberOfHiddenNeurons + i])
-            {
-                score++;
-            }
-        }
-        return score;
     }
 
     void computeSkipTicks(const unsigned char *poolRandom2Buffer, long long *skipTicks, unsigned char *skipTicksMap, long long *ticksNumbers)
@@ -552,38 +573,108 @@ struct ScoreFunction
         }
     }
 
-    unsigned int computeSkipTicksNeurons(const PoolSynapseData *pPoolSynapseTick, const unsigned char *skipTicksMap, unsigned char *curCachedNeurons, Neuron &neurons)
+    template <typename T>
+    bool areElementsUnique(const T *A, int size)
     {
-        // Reset neuron values
-        setMem(neurons.input, sizeof(neurons.input[0]) * allNeuronsCount, 0);
-        for (int i = 0; i < dataLength; i++)
+        for (int i = 0; i < size; ++i)
         {
-            neurons.input[i] = (char)miningData[i];
+            for (int j = i + 1; j < size; ++j)
+            {
+                if (A[i] == A[j])
+                {
+                    return false; // Duplicate found
+                }
+            }
         }
+        return true; // All elements are unique
+    }
 
-        // Compute
-        for (long long tick = 0; tick < maxDuration; tick++)
+    template <typename T>
+    bool isAnyElementInBContainedInA(const T *A, const T *B, int size, int shiftB = 0)
+    {
+        for (int i = 0; i < size; ++i)
         {
-            // Tick not on the list, accumulate as normal
-            PoolSynapseData data = pPoolSynapseTick[tick];
-            unsigned int neuronIndex = data.neuronIndex;
-            unsigned int supplierNeuronIndex = (data.supplierIndexWithSign >> 1);
-            unsigned int sign = (data.supplierIndexWithSign & 1U);
+            for (int j = 0; j < size; ++j)
+            {
+                if ((B[i] >> shiftB) == A[j])
+                {
+                    return true; // Element in B found in A
+                }
+            }
+        }
+        return false; // No element in B is found in A
+    }
 
-            char nnV = neurons.input[supplierNeuronIndex];
+    template <bool skipTickFlag, int batchSize>
+    void computeNeuronsBatch(
+        long long tickOffset,
+        const unsigned short *pNeuronIdices,
+        const unsigned short *pNeuronSupplier,
+        const unsigned char *skipTicksMap,
+        unsigned char *curCachedNeurons,
+        computeBuffer::Neuron &neurons32)
+    {
+        long long tick = tickOffset;
+        for (int k = 0; k < batchSize; k++, tick++)
+        {
+            unsigned int supplierIndexWithSign = pNeuronSupplier[tick];
+            unsigned short supplierNeuronIndex = supplierIndexWithSign >> 1;
+            unsigned char sign = supplierIndexWithSign & 1U;
+            char nnV = neurons32.input[supplierNeuronIndex];
             nnV = sign ? nnV : -nnV;
-
-            char oldNeuronValue = neurons.input[neuronIndex];
-            neurons.input[neuronIndex] += nnV;
-            clampNeuron(neurons.input[neuronIndex]);
-
+            unsigned short neuronIndex = pNeuronIdices[tick];
+            char oldNeuronValue = neurons32.input[neuronIndex];
+            neurons32.input[neuronIndex] += nnV;
+            clampNeuron(neurons32.input[neuronIndex]);
             if (skipTicksMap[tick] & candidateSkipTickMaskBits)
             {
-                curCachedNeurons[tick] = (oldNeuronValue == neurons.input[neuronIndex]);
-                if (skipTicksMap[tick] & skippedTickMaskBits)
+                curCachedNeurons[tick] = (oldNeuronValue == neurons32.input[neuronIndex]);
+                if (skipTickFlag && (skipTicksMap[tick] & skippedTickMaskBits))
                 {
-                    neurons.input[neuronIndex] = oldNeuronValue;
+                    neurons32.input[neuronIndex] = oldNeuronValue;
                 }
+            }
+        }
+    }
+
+    template <bool skipTickFlag>
+    unsigned int computeNeurons(
+        const unsigned short *pNeuronIdices,
+        const unsigned short *pNeuronSupplier,
+        const unsigned char *skipTicksMap,
+        unsigned char *curCachedNeurons,
+        const unsigned char *batches,
+        computeBuffer::Neuron &neurons32)
+    {
+        setMem(neurons32.input, sizeof(neurons32.input[0]) * allNeuronsCount, 0);
+        for (int i = 0; i < dataLength; i++)
+        {
+            neurons32.input[i] = (char)miningData[i];
+        }
+        neuron_t neuronBuffer[2 * BATCH_SIZE];
+        long long batchIdx = 0;
+
+        for (long long batch = 0; batch < maxDuration; batch += BATCH_SIZE, batchIdx++)
+        {
+            if (batches[batchIdx])
+            {
+                computeNeuronsBatch<skipTickFlag, BATCH_SIZE>(
+                    batch,
+                    pNeuronIdices,
+                    pNeuronSupplier,
+                    skipTicksMap,
+                    curCachedNeurons,
+                    neurons32);
+            }
+            else
+            {
+                computeNeuronsBatch<skipTickFlag, BATCH_SIZE>(
+                    batch,
+                    pNeuronIdices,
+                    pNeuronSupplier,
+                    skipTicksMap,
+                    curCachedNeurons,
+                    neurons32);
             }
         }
 
@@ -591,12 +682,23 @@ struct ScoreFunction
         unsigned int currentScore = 0;
         for (unsigned int i = 0; i < dataLength; i++)
         {
-            if (miningData[i] == neurons.input[dataLength + numberOfHiddenNeurons + i])
+            if (miningData[i] == neurons32.input[dataLength + numberOfHiddenNeurons + i])
             {
                 currentScore++;
             }
         }
         return currentScore;
+    }
+
+    unsigned int computeSkipTicksNeurons(
+        const unsigned short *pNeuronIdices,
+        const unsigned short *pNeuronSupplier,
+        const unsigned char *skipTicksMap,
+        unsigned char *curCachedNeurons,
+        unsigned char *batches,
+        computeBuffer::Neuron &neurons32)
+    {
+        return computeNeurons<true>(pNeuronIdices, pNeuronSupplier, skipTicksMap, curCachedNeurons, batches, neurons32);
     }
 
     // Compute score
@@ -605,8 +707,6 @@ struct ScoreFunction
         const int solutionBufIdx = (int)(processor_Number % solutionBufferCount);
 
         computeBuffer &cb = _computeBuffer[solutionBufIdx];
-        PoolSynapseData *pPoolSynapseTick = cb._poolSynapseTickData;
-        auto &neurons = cb._neurons;
         auto *prvCachedNeurons = cb._prvCachedNeurons;
         auto *curCachedNeurons = cb._curCachedNeurons;
 
@@ -614,18 +714,21 @@ struct ScoreFunction
         setMem(curCachedNeurons, sizeof(curCachedNeurons[0]) * maxDuration, 0);
 
         // generateSynapse(cb, solutionBufIdx, publicKey, nonce);
-        cb.k12.initState((const long long unsigned int *)&publicKey.m256i_u64[0], (const long long unsigned int *)&nonce.m256i_u64[0], cb._poolRandom2Buffer);
+        cb.k12.initState(&publicKey.m256i_u64[0], &nonce.m256i_u64[0], cb._poolRandom2Buffer);
         cb.k12.random2FromPrecomputedPool((unsigned char *)cb._synapses.signs, synapseSignsCount * sizeof(unsigned long long));
 
         // Cache the pool synapse data
-        computePoolSynapseData(cb._synapses.signs, cb._poolRandom2Buffer, cb._poolSynapseData, pPoolSynapseTick);
+        computePoolSynapseData(cb._synapses.signs, cb._poolRandom2Buffer, cb._poolSynapseData, cb._poolNeuronIndices, cb._poolsupplierIndexWithSign);
 
         // Next run for optimization steps
         // Generate a list of possible skip ticks
         computeSkipTicks(cb._poolRandom2Buffer, cb._skipTicks, cb._skipTicksMap, cb._ticksNumbers);
 
+        // Calculate batches that can run parallel
+        checkParallelBatch(cb._poolNeuronIndices, cb._poolsupplierIndexWithSign, cb._parBatches);
+
         // First run to get the score of fulll
-        unsigned int score = computeFullNeurons(pPoolSynapseTick, cb._skipTicksMap, prvCachedNeurons, neurons);
+        unsigned int score = computeFullNeurons(cb._poolNeuronIndices, cb._poolsupplierIndexWithSign, cb._skipTicksMap, prvCachedNeurons, cb._parBatches, cb._neurons);
 
         // Run the optimization steps
         for (long long l = 0; l < numberOfOptimizationSteps - 1; l++)
@@ -644,7 +747,7 @@ struct ScoreFunction
                 curCachedNeurons[cb._skipTicks[k]] = 0;
             }
 
-            unsigned int currentScore = computeSkipTicksNeurons(pPoolSynapseTick, cb._skipTicksMap, curCachedNeurons, neurons);
+            unsigned int currentScore = computeSkipTicksNeurons(cb._poolNeuronIndices, cb._poolsupplierIndexWithSign, cb._skipTicksMap, curCachedNeurons, cb._parBatches, cb._neurons);
 
             // Check if this tick is good to skip
             if (currentScore >= score)
@@ -684,9 +787,11 @@ struct ScoreFunction
 #endif
 
         const int solutionBufIdx = (int)(processor_Number % solutionBufferCount);
+        ACQUIRE(solutionEngineLock[solutionBufIdx]);
 
         score = computeScore(processor_Number, publicKey, miningSeed, nonce);
 
+        RELEASE(solutionEngineLock[solutionBufIdx]);
 #if USE_SCORE_CACHE
         scoreCache.addEntry(publicKey, miningSeed, nonce, scoreCacheIndex, score);
 #endif

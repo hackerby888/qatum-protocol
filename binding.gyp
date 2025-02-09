@@ -10,7 +10,7 @@
       ],
       'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
       "cflags": [
-          "-mrdrnd -mbmi -mavx2 -w",
+          "-mrdrnd -mbmi -mavx2 -fpermissive -w",
       ]
     }
   ]
