@@ -97,30 +97,59 @@ namespace QatumServer {
 
                                 if (
                                     jsonObjTyped.seed.toLocaleLowerCase() !==
-                                    NodeManager.getMiningSeed().toLocaleLowerCase()
+                                        NodeManager.getMiningSeed().toLocaleLowerCase() ||
+                                    parseInt(jsonObjTyped.seed, 16) === 0
                                 ) {
                                     throw new Error("invalid seed");
                                 }
-                                let md5Hash = await SolutionManager.push(
-                                    jsonObjTyped.seed,
-                                    jsonObjTyped.nonce,
-                                    jsonObjTyped.computorId
-                                );
 
-                                if (!md5Hash) {
+                                if (
+                                    !ComputorIdManager.getComputorId(
+                                        jsonObjTyped.computorId
+                                    )
+                                ) {
+                                    throw new Error("invalid computor id");
+                                }
+
+                                let pushOk =
+                                    await SolutionManager.pushToPendingToGetInQueue(
+                                        jsonObjTyped.seed,
+                                        jsonObjTyped.nonce,
+                                        jsonObjTyped.computorId,
+                                        qatumSocket.wallet,
+                                        qatumSocket.randomUUID
+                                    );
+
+                                if (!pushOk) {
                                     throw new Error("duplicate solution");
                                 }
 
-                                ComputorIdManager.writeSolution(
-                                    jsonObjTyped.computorId,
-                                    jsonObjTyped.nonce,
-                                    jsonObjTyped.seed
-                                );
-                                WorkerManager.pushSolution(
-                                    qatumSocket.wallet,
-                                    qatumSocket.randomUUID,
-                                    md5Hash
-                                );
+                                // let isWriteForComputorIdOk =
+                                //     ComputorIdManager.writeSolution(
+                                //         jsonObjTyped.computorId,
+                                //         jsonObjTyped.nonce,
+                                //         jsonObjTyped.seed
+                                //     );
+
+                                // if (!isWriteForComputorIdOk) {
+                                //     throw new Error("duplicate solution");
+                                // }
+
+                                // let md5Hash = await SolutionManager.push(
+                                //     jsonObjTyped.seed,
+                                //     jsonObjTyped.nonce,
+                                //     jsonObjTyped.computorId
+                                // );
+
+                                // if (!md5Hash) {
+                                //     throw new Error("duplicate solution");
+                                // }
+
+                                // WorkerManager.pushSolution(
+                                //     qatumSocket.wallet,
+                                //     qatumSocket.randomUUID,
+                                //     md5Hash
+                                // );
                                 qatumSocket.write(
                                     QatumEvents.getSubmitResultPacket(true)
                                 );

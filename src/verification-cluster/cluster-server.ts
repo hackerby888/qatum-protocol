@@ -2,15 +2,17 @@ import net from "net";
 import LOG from "../utils/logger";
 import QatumEvents from "../qatum/qatum-events";
 import { SolutionManager } from "../managers/solution-manager";
-import { Solution, SolutionNetState } from "../types/type";
+import { ClusterSocket, Solution, SolutionNetState } from "../types/type";
 import NodeManager from "../managers/node-manager";
 import os from "os";
 import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
-
+import { randomUUID } from "crypto";
+import { ClusterSocketManager } from "./cluster-socket-manager";
+import { wait } from "../utils/wait";
 let threads = Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
-
 namespace VerificationClusterServer {
     export async function createServer(port: number) {
+        ClusterSocketManager.loadFromDisk();
         if (isNaN(port)) {
             return LOG(
                 "warning",
@@ -22,15 +24,20 @@ namespace VerificationClusterServer {
                 "cluster",
                 `new cluster node connected ${socket.remoteAddress}`
             );
+            let clusterSocket = socket as ClusterSocket;
+            clusterSocket.randomUUID = randomUUID();
             socket.setKeepAlive(true);
             socket.setEncoding("utf-8");
             let buffer: string = "";
 
             const handler = async (data: string) => {
                 let jsonObj = JSON.parse(data) as {
-                    type: "get" | "set";
+                    type: "get" | "set" | "register";
                     numberOfSolutions?: number;
                     solutionsVerified?: SolutionNetState[];
+                    cpu?: string;
+                    threads?: number;
+                    useThreads?: number;
                 };
 
                 if (jsonObj.type === "get") {
@@ -38,6 +45,7 @@ namespace VerificationClusterServer {
                         jsonObj.numberOfSolutions as number,
                         true
                     );
+
                     socket.write(
                         JSON.stringify({
                             type: "get",
@@ -50,6 +58,23 @@ namespace VerificationClusterServer {
                     solutions?.forEach((solution) => {
                         NodeManager.handleOnVerifiedSolution(solution, true);
                     });
+
+                    if (isNaN(clusterSocket.solutionsVerified))
+                        clusterSocket.solutionsVerified = 0;
+
+                    ClusterSocketManager.increaseSolutionsVerified(
+                        clusterSocket.randomUUID,
+                        solutions.length
+                    );
+                } else if (jsonObj.type === "register") {
+                    clusterSocket.ip = socket.remoteAddress as string;
+                    clusterSocket.randomUUID = randomUUID();
+                    clusterSocket.solutionsVerified = 0;
+                    clusterSocket.cpu = jsonObj.cpu as string;
+                    clusterSocket.threads = jsonObj.threads as number;
+                    clusterSocket.useThreads = jsonObj.useThreads as number;
+                    clusterSocket.isConnected = true;
+                    ClusterSocketManager.addSocket(clusterSocket);
                 }
             };
 
@@ -81,8 +106,11 @@ namespace VerificationClusterServer {
                 }
             });
 
-            socket.on("end", () => {
+            socket.on("close", () => {
                 LOG("cluster", "cluster node disconnected");
+                ClusterSocketManager.markAsDisconnected(
+                    clusterSocket.randomUUID
+                );
             });
 
             socket.on("error", (e) => {
@@ -104,6 +132,8 @@ namespace VerificationClusterServer {
         let buffer: string = "";
         let getSolutionIntervalId: NodeJS.Timeout | null;
         let submitSolutionId: NodeJS.Timeout | null;
+        let cpu: string = os.cpus()[0].model;
+        let maxThreads: number = os.cpus().length;
 
         const handler = async (data: string) => {
             let jsonObj = JSON.parse(data) as {
@@ -117,25 +147,35 @@ namespace VerificationClusterServer {
                         "cluster",
                         `pushing ${solution.md5Hash} solution to cluster`
                     );
-                    SolutionManager.push(
-                        solution.seed,
-                        solution.nonce,
-                        solution.computorId
-                    );
+                    SolutionManager.push(solution);
                 }
             }
         };
 
-        const onConnect = () => {
+        const onConnect = async () => {
             LOG(
                 "cluster",
                 "connected to cluster main server " + host + ":" + port
             );
 
+            socket.write(
+                JSON.stringify({
+                    type: "register",
+                    cpu,
+                    threads: maxThreads,
+                    useThreads: threads,
+                }) + QatumEvents.DELIMITER
+            );
+
+            await wait(ONE_SECOND * 5);
+
             getSolutionIntervalId = setInterval(() => {
                 if (SolutionManager.getVerifyingLength() < threads * 2) {
                     let needToPush =
                         threads * 2 - SolutionManager.getVerifyingLength();
+
+                    if (!needToPush) return;
+
                     socket.write(
                         JSON.stringify({
                             type: "get",
@@ -149,6 +189,9 @@ namespace VerificationClusterServer {
                 if (SolutionManager.getVerifiedLength() > 0) {
                     let solutions =
                         SolutionManager.getVerifiedSolutionsResult() as SolutionNetState[];
+
+                    if (!solutions.length) return;
+
                     socket.write(
                         JSON.stringify({
                             type: "set",
@@ -196,10 +239,10 @@ namespace VerificationClusterServer {
             if (submitSolutionId) clearInterval(submitSolutionId);
             getSolutionIntervalId = null;
             submitSolutionId = null;
-
+            socket.destroy();
             setTimeout(() => {
                 LOG("cluster", "reconnecting to cluster main server");
-                socket.connect(port, host, onConnect);
+                connectToServer(server);
             }, FIVE_SECONDS);
         });
 

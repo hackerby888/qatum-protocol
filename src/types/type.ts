@@ -8,6 +8,18 @@ export type QatumSocket = net.Socket & {
     worker: string;
 };
 
+export interface ClusterData {
+    randomUUID: string;
+    ip: string;
+    cpu: string;
+    threads: number;
+    solutionsVerified: number;
+    isConnected: boolean;
+    useThreads: number;
+}
+
+export type ClusterSocket = net.Socket & ClusterData;
+
 export interface Transaction {
     sourceId: string;
     destId: string;
@@ -30,7 +42,13 @@ export interface Solution {
     nonce: string;
     computorId: string;
     md5Hash: string;
+    submittedAt: number;
 }
+
+export type SolutionPendingToProcess = Solution & {
+    wallet: string;
+    workerUUID: string;
+};
 
 export interface SolutionResult {
     md5Hash: string;
@@ -106,6 +124,7 @@ export interface ComputorIdData {
     lastUpdateScoreTime: number;
     // we use map for faster access
     submittedSolutions: {
+        //md5Hash: {isWrittenToBC, submittedTime}
         [key: string]: {
             isWrittenToBC: boolean;
             submittedTime: number;
@@ -148,6 +167,36 @@ export interface MiningConfig {
     diffHashRateToBalance: number; // hashrate difference between highest - lowest to balance
     diffSolutionToBalance: number; // solution difference between highest - lowest to balance
     avgOverRate: number; // when our ids below avg score, we should mine to target score = avgScore * avgOverRate
+}
+
+export interface TickInfo {
+    tickInfo: {
+        tick: number;
+        duration: number;
+        epoch: number;
+        initialTick: number;
+    };
+}
+
+export interface TickData {
+    tickNumber: number;
+    isEmpty: boolean;
+}
+
+export interface NodesApiGetData {
+    nodeIps: string[];
+    nodeIpsInactive: string[];
+}
+
+export interface NodesApiPostData {
+    nodeIps: {
+        add: string[];
+        delete: string[];
+    };
+    nodeIpsInactive: {
+        add: string[];
+        delete: string[];
+    };
 }
 
 export type PaymentDbState = "all" | "unpaid" | "paid";

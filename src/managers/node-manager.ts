@@ -2,9 +2,9 @@ import bindings from "bindings";
 import LOG from "../utils/logger";
 import { SocketManager } from "./socket-manager";
 import QatumEvents from "../qatum/qatum-events";
-import { FIVE_SECONDS, ONE_SECOND } from "../consts/time";
+import { FIVE_SECONDS, ONE_MINUTE, ONE_SECOND } from "../consts/time";
 import { ComputorIdManager } from "./computor-id-manger";
-import Platform from "../platform/exit";
+import Platform from "../platform/platform";
 import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
 import {
@@ -20,7 +20,10 @@ import { DATA_PATH } from "../consts/path";
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
-    getMiningCurrentMiningSeed: (cb: (miningSeed: string) => void) => void;
+    getMiningCurrentMiningSeed: (
+        ip: string,
+        cb: (miningSeed: string) => void
+    ) => void;
     sendSolution: (
         ip: string,
         nonce: string,
@@ -42,6 +45,7 @@ interface Addon {
     ) => void;
     checkScore: (score: number, threshold: number) => boolean;
     pay: (
+        ip: string,
         paymentCsvString: string,
         secretSeed: string,
         cb: (tick: number, txhash: string) => void
@@ -55,8 +59,14 @@ namespace NodeManager {
     let currentMiningSeed = "";
     //this seed is used to submit solution
     let currentSecretSeed = "";
-    let nodeIps: string[] = [];
+    export let nodeIps: string[] = [];
+    export let nodeIpsInactive: string[] = [];
+    let nodeIpsFailedMap: { [key: string]: number } = {};
     let gthreads = 0;
+
+    let lastSuccessSyncSeed = Date.now();
+
+    let isDiskLoaded = false;
 
     export let difficulty = {
         pool: Number(process.env.INITIAL_POOL_DIFFICULTY),
@@ -69,6 +79,8 @@ namespace NodeManager {
 
     export function saveToDisk() {
         try {
+            if (!isDiskLoaded) return;
+
             fs.writeFileSync(
                 `${DATA_PATH}/difficulty.json`,
                 JSON.stringify(difficulty)
@@ -99,16 +111,56 @@ namespace NodeManager {
             );
             difficulty = diskDifficulty;
             solutionsToSubmitQueue = diskSolutionsToSubmitQueue;
+
+            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
                     `difficulty.json or solutionsToSubmitQueue.json not found, creating new one`
                 );
+                isDiskLoaded = true;
             } else {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
             }
         }
+    }
+
+    export function pushNodeIp(
+        nodeIp: string,
+        to: "active" | "inactive" = "active"
+    ) {
+        if (to === "active") {
+            if (!nodeIps.includes(nodeIp)) nodeIps.push(nodeIp);
+        } else if (to === "inactive") {
+            if (!nodeIpsInactive.includes(nodeIp)) nodeIpsInactive.push(nodeIp);
+        }
+    }
+
+    export function removeNodeIp(
+        nodeIp: string,
+        from: "active" | "inactive" = "active"
+    ) {
+        if (from === "active") {
+            nodeIps = nodeIps.filter((ip) => ip !== nodeIp);
+        } else if (from === "inactive") {
+            nodeIpsInactive = nodeIpsInactive.filter((ip) => ip !== nodeIp);
+        }
+    }
+
+    export function checkAndRemoveIpsIfInactive() {
+        let cloneNodeIps = [...nodeIps];
+        for (let i = 0; i < nodeIps.length; i++) {
+            let ip = nodeIps[i];
+            if (nodeIpsFailedMap[ip] > 10) {
+                LOG("warning", "node ip inactive: " + ip);
+                pushNodeIp(ip, "inactive");
+                cloneNodeIps = cloneNodeIps.filter((item) => item !== ip);
+            }
+        }
+
+        nodeIps = cloneNodeIps.length > 0 ? cloneNodeIps : [...nodeIpsInactive];
+        nodeIpsInactive = [];
     }
 
     export function setDifficulty(newDiff: { pool?: number; net?: number }) {
@@ -138,19 +190,23 @@ namespace NodeManager {
                 .map((payment) => `${payment.id},${payment.amount}`)
                 .join("\n") + "\n";
         return new Promise((resolve, reject) => {
-            addon.pay(paymentCsvString, currentSecretSeed, (tick, txhash) => {
-                if (tick > 0) {
-                    resolve({
-                        tick,
-                        txhash,
-                    });
-                } else {
-                    reject({
-                        tick,
-                        txhash,
-                    });
+            addon.pay(
+                getRandomIpFromList(),
+                paymentCsvString,
+                currentSecretSeed,
+                (tick, txhash) => {
+                    if (tick > 0) {
+                        resolve({
+                            tick,
+                            txhash,
+                        });
+                    } else {
+                        reject(
+                            new Error(`transaction failed by node connection`)
+                        );
+                    }
                 }
-            });
+            );
         });
     }
 
@@ -171,28 +227,28 @@ namespace NodeManager {
     }
     export async function initToNodeSocket() {
         try {
-            let canBreak = false;
-            while (true) {
-                if (canBreak) break;
-                try {
-                    await new Promise((resolve, reject) => {
-                        addon.initSocket(
-                            getRandomIpFromList(),
-                            (isOk: boolean) => {
-                                if (isOk) {
-                                    canBreak = true;
-                                    resolve(undefined);
-                                } else {
-                                    reject(new Error("failed to init socket"));
-                                }
-                            }
-                        );
-                    });
-                } catch (e: any) {
-                    LOG("error", "NodeManager.initToNodeSocket: " + e.message);
-                    continue;
-                }
-            }
+            // let canBreak = false;
+            // while (true) {
+            //     if (canBreak) break;
+            //     try {
+            //         await new Promise((resolve, reject) => {
+            //             addon.initSocket(
+            //                 getRandomIpFromList(),
+            //                 (isOk: boolean) => {
+            //                     if (isOk) {
+            //                         canBreak = true;
+            //                         resolve(undefined);
+            //                     } else {
+            //                         reject(new Error("failed to init socket"));
+            //                     }
+            //                 }
+            //             );
+            //         });
+            //     } catch (e: any) {
+            //         LOG("error", "NodeManager.initToNodeSocket: " + e.message);
+            //         continue;
+            //     }
+            // }
 
             await syncMiningSeed();
             watchMiningSeed();
@@ -205,7 +261,7 @@ namespace NodeManager {
         let isProcessing = false;
         setInterval(async () => {
             if (isProcessing) return;
-            let solution = solutionsToSubmitQueue.shift();
+            let solution = solutionsToSubmitQueue[0];
             try {
                 isProcessing = true;
                 if (solution) {
@@ -215,6 +271,7 @@ namespace NodeManager {
                         solution.computorId
                     );
                     LOG("node", `solution submitted: ${solution.md5Hash}`);
+                    solutionsToSubmitQueue.shift();
                 }
                 isProcessing = false;
             } catch (e: any) {
@@ -225,7 +282,7 @@ namespace NodeManager {
                     "NodeManager.watchAndSubmitSolution: " + e.message
                 );
             }
-        }, FIVE_SECONDS);
+        }, ONE_SECOND / 2);
     }
 
     export function handleOnVerifiedSolution(
@@ -298,7 +355,11 @@ namespace NodeManager {
 
     export async function init(ips: string, secretSeed: string) {
         LOG("node", "init node manager");
-        nodeIps = ips.split(",");
+        nodeIps = ips.split(",").map((ip) => ip.trim());
+        for (let i = 0; i < nodeIps.length; i++) {
+            LOG("node", "using node ip: " + nodeIps[i]);
+            nodeIpsFailedMap[nodeIps[i]] = 0;
+        }
         loadFromDisk();
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
@@ -329,7 +390,7 @@ namespace NodeManager {
                     if (isOK) {
                         resolve(isOK);
                     } else {
-                        reject(isOK);
+                        reject(new Error("failed to send solution"));
                     }
                 }
             );
@@ -345,18 +406,33 @@ namespace NodeManager {
         while (true) {
             try {
                 if (canBreak) break;
+                let candicateIp = getRandomIpFromList();
                 await new Promise((resolve, reject) => {
-                    addon.getMiningCurrentMiningSeed((newSeed: string) => {
-                        if (newSeed === "-1") {
-                            return reject(new Error("failed to get new seed"));
+                    addon.getMiningCurrentMiningSeed(
+                        candicateIp,
+                        async (newSeed: string) => {
+                            if (newSeed === "-1") {
+                                nodeIpsFailedMap[candicateIp]++;
+                                checkAndRemoveIpsIfInactive();
+                                await new Promise((resolve) => {
+                                    setTimeout(() => {
+                                        resolve(undefined);
+                                    }, FIVE_SECONDS);
+                                });
+                                return reject(
+                                    new Error("failed to get new seed")
+                                );
+                            }
+                            currentMiningSeed = newSeed;
+                            canBreak = true;
+                            lastSuccessSyncSeed = Date.now();
+                            nodeIpsFailedMap[candicateIp] = 0;
+                            resolve(undefined);
                         }
-                        currentMiningSeed = newSeed;
-                        canBreak = true;
-                        resolve(undefined);
-                    });
+                    );
                 });
             } catch (e: any) {
-                LOG("error", "NodeManager.syncMiningSeed: " + e.message);
+                //  LOG("error", "NodeManager.syncMiningSeed: " + e.message);
                 continue;
             }
         }
@@ -367,6 +443,10 @@ namespace NodeManager {
         let failedCount = 0;
         setInterval(async () => {
             try {
+                if (Date.now() - lastSuccessSyncSeed > ONE_MINUTE * 1) {
+                    LOG("warning", "failed to get new seed for 1 minute");
+                    lastSuccessSyncSeed = Date.now();
+                }
                 if (isProcessing) return;
 
                 isProcessing = true;

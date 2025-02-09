@@ -1,45 +1,112 @@
 import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
-import Platform from "../platform/exit";
-import { Solution, SolutionNetState } from "../types/type";
+import Platform from "../platform/platform";
+import {
+    Solution,
+    SolutionNetState,
+    SolutionPendingToProcess,
+} from "../types/type";
 import LOG from "../utils/logger";
 import { DATA_PATH } from "../consts/path";
 import fs from "fs";
 import QatumDb from "../database/db";
 import { ComputorIdManager } from "./computor-id-manger";
+import WorkerManager from "./worker-manager";
+import { ONE_MINUTE } from "../consts/time";
 
 namespace SolutionManager {
+    let solutionsPendingToGetProcessQueue: Map<
+        string,
+        SolutionPendingToProcess
+    > = new Map();
     let solutionQueue: Map<string, Solution> = new Map();
     let solutionVerifyingQueue: Map<string, Solution> = new Map();
     let solutionClusterVerifyingQueue: Map<string, Solution> = new Map();
     let solutionVerifiedQueue: Map<string, SolutionNetState> = new Map();
 
+    let solutionClusterVerifyingQueueCounterMap: Map<string, boolean> =
+        new Map();
+
     let threads =
         Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 
-    export function toJson() {
-        return {
+    let isEnable = true;
+
+    let isDiskLoaded = false;
+
+    export function disable() {
+        isEnable = false;
+    }
+
+    export function enable() {
+        isEnable = true;
+    }
+
+    export function getIsEnable() {
+        return isEnable;
+    }
+
+    export function toJson(type: "object" | "array" = "array") {
+        let solutionsMap = {
             solutionQueue: Object.fromEntries(solutionQueue),
             solutionVerifyingQueue: Object.fromEntries(solutionVerifyingQueue),
             solutionClusterVerifyingQueue: Object.fromEntries(
                 solutionClusterVerifyingQueue
             ),
             solutionVerifiedQueue: Object.fromEntries(solutionVerifiedQueue),
+            solutionsPendingToGetProcessQueue: Object.fromEntries(
+                solutionsPendingToGetProcessQueue
+            ),
         };
+
+        if (type === "object") return solutionsMap;
+
+        let dataArray = {
+            solutionQueue: Object.keys(solutionsMap?.solutionQueue || {}).map(
+                (key) => ({
+                    ...solutionsMap?.solutionQueue[key],
+                })
+            ),
+            solutionVerifyingQueue: Object.keys(
+                solutionsMap?.solutionVerifyingQueue || {}
+            ).map((key) => ({
+                ...solutionsMap?.solutionVerifyingQueue[key],
+            })),
+            solutionClusterVerifyingQueue: Object.keys(
+                solutionsMap?.solutionClusterVerifyingQueue || {}
+            ).map((key) => ({
+                ...solutionsMap?.solutionClusterVerifyingQueue[key],
+            })),
+            solutionVerifiedQueue: Object.keys(
+                solutionsMap?.solutionVerifiedQueue || {}
+            ).map((key) => ({
+                ...solutionsMap?.solutionVerifiedQueue[key],
+            })),
+            solutionsPendingToGetProcessQueue: Object.keys(
+                solutionsMap?.solutionsPendingToGetProcessQueue || {}
+            ).map((key) => ({
+                ...solutionsMap?.solutionsPendingToGetProcessQueue[key],
+            })),
+        };
+
+        return dataArray;
     }
 
     export function saveToDisk(epoch?: number) {
         try {
-            let moduleData = toJson();
+            if (!isDiskLoaded) return;
+            let moduleData = toJson("object");
 
             //add to solutionQueue again, verifying sols will be processed again
             moduleData.solutionQueue = {
                 ...moduleData.solutionQueue,
                 ...moduleData.solutionVerifyingQueue,
+                ...moduleData.solutionClusterVerifyingQueue,
             };
 
             moduleData.solutionVerifyingQueue = {};
+            moduleData.solutionClusterVerifyingQueue = {};
 
             fs.writeFileSync(
                 `${DATA_PATH}/solutions-${process.env.MODE}-${
@@ -76,12 +143,17 @@ namespace SolutionManager {
             solutionVerifiedQueue = new Map(
                 Object.entries(moduleData.solutionVerifiedQueue)
             );
+            solutionsPendingToGetProcessQueue = new Map(
+                Object.entries(moduleData.solutionsPendingToGetProcessQueue)
+            );
+            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
                     `solutions-${process.env.MODE}.json not found, creating new one`
                 );
+                isDiskLoaded = true;
             } else {
                 LOG("error", "SolutionManager.loadFromDisk: " + error.message);
             }
@@ -100,14 +172,25 @@ namespace SolutionManager {
                 addNSolutionToVerifying(needToPush);
             }
         }, 100);
+
+        //add to verifying queue from cluster queue again when it's not processed
+        setInterval(() => {
+            for (let [md5Hash, solution] of solutionClusterVerifyingQueue) {
+                if (solutionClusterVerifyingQueueCounterMap.has(md5Hash)) {
+                    solutionQueue.set(md5Hash, solution);
+                    solutionClusterVerifyingQueueCounterMap.delete(md5Hash);
+                    solutionClusterVerifyingQueue.delete(md5Hash);
+                } else {
+                    solutionClusterVerifyingQueueCounterMap.set(md5Hash, true);
+                }
+            }
+        }, ONE_MINUTE);
     }
 
-    export async function push(
-        seed: string,
-        nonce: string,
-        computorId: string
-    ) {
-        let md5Hash = await md5(seed + nonce + computorId);
+    export async function push(solution: Solution) {
+        let md5Hash = await md5(
+            solution.seed + solution.nonce + solution.computorId
+        );
         if (
             solutionQueue.has(md5Hash) ||
             solutionVerifyingQueue.has(md5Hash) ||
@@ -115,9 +198,77 @@ namespace SolutionManager {
             solutionClusterVerifyingQueue.has(md5Hash)
         )
             return null;
-        solutionQueue.set(md5Hash, { seed, nonce, computorId, md5Hash });
+        solutionQueue.set(md5Hash, {
+            seed: solution.seed,
+            nonce: solution.nonce,
+            computorId: solution.computorId,
+            md5Hash,
+            submittedAt: solution.submittedAt,
+        });
 
         return md5Hash;
+    }
+
+    export async function pushToPendingToGetInQueue(
+        seed: string,
+        nonce: string,
+        computorId: string,
+        wallet: string,
+        workerUUID: string
+    ) {
+        let md5Hash = await md5(seed + nonce + computorId);
+        if (
+            solutionQueue.has(md5Hash) ||
+            solutionVerifyingQueue.has(md5Hash) ||
+            solutionVerifiedQueue.has(md5Hash) ||
+            solutionClusterVerifyingQueue.has(md5Hash) ||
+            solutionsPendingToGetProcessQueue.has(md5Hash)
+        )
+            return false;
+
+        solutionsPendingToGetProcessQueue.set(md5Hash, {
+            seed,
+            nonce,
+            computorId,
+            md5Hash,
+            wallet,
+            workerUUID,
+            submittedAt: Date.now(),
+        });
+
+        return true;
+    }
+
+    export function getPendingToGetProcessQueue() {
+        return solutionsPendingToGetProcessQueue;
+    }
+
+    export async function processPendingToGetProcessQueue() {
+        for (let [_, solution] of solutionsPendingToGetProcessQueue) {
+            let isWriteForComputorIdOk = ComputorIdManager.writeSolution(
+                solution.computorId,
+                solution.nonce,
+                solution.seed
+            );
+
+            if (!isWriteForComputorIdOk) {
+                continue;
+            }
+
+            let md5Hash = await SolutionManager.push(solution as Solution);
+
+            if (!md5Hash) {
+                continue;
+            }
+
+            WorkerManager.pushSolution(
+                solution.wallet,
+                solution.workerUUID,
+                md5Hash
+            );
+        }
+
+        solutionsPendingToGetProcessQueue.clear();
     }
 
     export function clear() {
@@ -173,7 +324,7 @@ namespace SolutionManager {
     ) {
         let returnSolutions: Solution[] = [];
         let i = 0;
-        while (i < n && !isEmpty()) {
+        while (i < n && !isEmpty() && isEnable) {
             let solution = popSolution(fromCluster);
             if (solution) returnSolutions.push(solution);
             i++;
@@ -227,6 +378,16 @@ namespace SolutionManager {
 
     export function isEmpty() {
         return solutionQueue.size === 0;
+    }
+
+    export function isAllEmpty() {
+        return (
+            solutionQueue.size === 0 &&
+            solutionVerifyingQueue.size === 0 &&
+            solutionClusterVerifyingQueue.size === 0 &&
+            solutionVerifiedQueue.size === 0 &&
+            solutionsPendingToGetProcessQueue.size === 0
+        );
     }
 
     export function isVerifyingEmpty() {

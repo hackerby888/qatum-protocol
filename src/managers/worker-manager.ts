@@ -30,6 +30,8 @@ namespace WorkerManager {
     };
     let UPDATE_GLOBALSTATS_INTERVAL = THREE_MINUTES;
 
+    let isDiskLoaded = false;
+
     export function init() {
         loadFromDisk();
         watchGlobalStats();
@@ -43,9 +45,12 @@ namespace WorkerManager {
         epoch?: number,
         needToSetInactive: boolean = true
     ) {
+        if (!isDiskLoaded) return;
         let candicateEpoch =
             epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch;
         try {
+            if (isNaN(candicateEpoch)) return;
+
             if (needToSetInactive) setInactiveAll();
             let moduleData: any = {
                 workersMap: {},
@@ -85,12 +90,14 @@ namespace WorkerManager {
                 workersMap.set(key, new Map(Object.entries(value)));
             });
             globalStats = moduleData.globalStats;
+            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
                     `workers-${candicateEpoch}.json not found, creating new one`
                 );
+                isDiskLoaded = true;
             } else {
                 LOG("error", "WorkerManager.loadFromDisk: " + error.message);
             }
@@ -256,6 +263,7 @@ namespace WorkerManager {
     ): void {
         let worker = getWorker(wallet, workerId);
         if (!worker) return;
+        if (worker.solutions.find((solution) => solution === md5Hash)) return;
         worker.solutions.push(md5Hash);
     }
 
