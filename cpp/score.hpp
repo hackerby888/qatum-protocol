@@ -637,108 +637,6 @@ struct ScoreFunction
         }
     }
 
-    template <bool skipTickFlag, int batchSize>
-    void computeNeuronsBatchSIMD(
-        long long batch,
-        const unsigned short *pNeuronIdices,
-        const unsigned short *pNeuronSupplier,
-        const unsigned char *skipTicksMap,
-        neuron_t *pBuffers,
-        unsigned char *curCachedNeurons,
-        computeBuffer::Neuron &neurons32)
-    {
-#if defined(__AVX512F__)
-        __m512i supplierNeuronIndex = _mm512_cvtepu16_epi32(_mm256_loadu_si256((__m256i *)(pNeuronSupplier + batch)));
-        __m512i neuronIndex = _mm512_cvtepu16_epi32(_mm256_loadu_si256((__m256i *)(pNeuronIdices + batch)));
-        __m512i skipCheck = _mm512_cvtepu8_epi32(_mm_loadu_si128((__m128i *)(skipTicksMap + batch)));
-
-        // Load supplier indices with sign
-        __m512i sign = _mm512_and_epi32(supplierNeuronIndex, _mm512_set1_epi32(1));
-        supplierNeuronIndex = _mm512_srai_epi32(supplierNeuronIndex, 1);
-
-        // Gather neuron values
-        __m512i gatheredValues = _mm512_i32gather_epi32(supplierNeuronIndex, (const neuron_t *)neurons32.input, sizeof(neuron_t));
-
-        // Apply sign
-        __m512i negatedValues = _mm512_sub_epi32(_mm512_setzero_si512(), gatheredValues);
-        __mmask16 mask = _mm512_cmpeq_epi32_mask(sign, _mm512_set1_epi32(1));
-        __m512i nnV = _mm512_mask_blend_epi32(mask, negatedValues, gatheredValues);
-
-        // Gather old neuron values
-        __m512i oldNeuronValues = _mm512_i32gather_epi32(neuronIndex, (const neuron_t *)neurons32.input, sizeof(neuron_t));
-
-        // Add nnV to old neuron values
-        __m512i newNeuronValues = _mm512_add_epi32(oldNeuronValues, nnV);
-        newNeuronValues = _mm512_max_epi32(newNeuronValues, _mm512_set1_epi32(-NEURON_VALUE_LIMIT));
-        newNeuronValues = _mm512_min_epi32(newNeuronValues, _mm512_set1_epi32(NEURON_VALUE_LIMIT));
-
-        // Skip tick check
-        if (skipTickFlag)
-        {
-            __mmask16 candidateCheck = _mm512_cmpeq_epi32_mask(_mm512_and_epi32(skipCheck, _mm512_set1_epi32(skippedTickMaskBits)), _mm512_setzero_si512());
-            newNeuronValues = _mm512_mask_blend_epi32(candidateCheck, oldNeuronValues, newNeuronValues);
-        }
-
-        // Scatter new neuron values back to neuronsInput
-        _mm512_i32scatter_epi32((int *)neurons32.input, neuronIndex, newNeuronValues, sizeof(neuron_t));
-
-        _mm512_storeu_si512((__m512i *)pBuffers, newNeuronValues);
-        _mm512_storeu_si512((__m512i *)(pBuffers + batchSize), oldNeuronValues);
-        for (int k = 0; k < batchSize; ++k)
-        {
-            const long long tick = batch + k;
-            if (skipTicksMap[tick] & candidateSkipTickMaskBits)
-            {
-                curCachedNeurons[tick] = (pBuffers[k] == pBuffers[batchSize + k]);
-            }
-        }
-#else
-        __m256i supplierNeuronIndex = _mm256_cvtepu16_epi32(_mm_loadu_epi16((__m128i *)(pNeuronSupplier + batch)));
-        __m256i neuronIndex = _mm256_cvtepu16_epi32(_mm_loadu_epi16((__m128i *)(pNeuronIdices + batch)));
-        __m256i skipCheck = _mm256_cvtepu8_epi32(_mm_loadl_epi64((__m128i *)(skipTicksMap + batch)));
-
-        // Load supplier indices with sign
-        __m256i sign = _mm256_and_epi32(supplierNeuronIndex, _mm256_set1_epi32(1));
-        supplierNeuronIndex = _mm256_srai_epi32(supplierNeuronIndex, 1);
-
-        // Gather neuron values
-        __m256i gatheredValues = _mm256_i32gather_epi32((const int *)neurons32.input, supplierNeuronIndex, sizeof(int));
-
-        // Apply sign
-        __m256i negatedValues = _mm256_sub_epi32(_mm256_setzero_si256(), gatheredValues);
-        __m256i mask = _mm256_cmpeq_epi32(sign, _mm256_set1_epi32(1));
-        __m256i nnV = _mm256_blendv_epi8(negatedValues, gatheredValues, mask);
-
-        // Gather old neuron values
-        __m256i oldNeuronValues = _mm256_i32gather_epi32((const int *)neurons32.input, neuronIndex, sizeof(int));
-
-        // Add nnV to old neuron values
-        __m256i newNeuronValues = _mm256_add_epi32(oldNeuronValues, nnV);
-        newNeuronValues = _mm256_max_epi32(newNeuronValues, _mm256_set1_epi32(-NEURON_VALUE_LIMIT));
-        newNeuronValues = _mm256_min_epi32(newNeuronValues, _mm256_set1_epi32(NEURON_VALUE_LIMIT));
-
-        _mm256_storeu_si256((__m256i *)pBuffers, newNeuronValues);
-        _mm256_storeu_si256((__m256i *)(pBuffers + batchSize), oldNeuronValues);
-
-        for (int k = 0; k < batchSize; ++k)
-        {
-            const long long tick = batch + k;
-            unsigned short neuronIndex = pNeuronIdices[tick];
-            char oldNeuronValue = pBuffers[batchSize + k];
-            char newNeuronValue = pBuffers[k];
-            neurons32.input[neuronIndex] = newNeuronValue;
-            if (skipTicksMap[tick] & candidateSkipTickMaskBits)
-            {
-                curCachedNeurons[tick] = (newNeuronValue == oldNeuronValue);
-                if (skipTickFlag && (skipTicksMap[tick] & skippedTickMaskBits))
-                {
-                    neurons32.input[neuronIndex] = oldNeuronValue;
-                }
-            }
-        }
-#endif
-    }
-
     template <bool skipTickFlag>
     unsigned int computeNeurons(
         const unsigned short *pNeuronIdices,
@@ -755,16 +653,16 @@ struct ScoreFunction
         }
         neuron_t neuronBuffer[2 * BATCH_SIZE];
         long long batchIdx = 0;
+
         for (long long batch = 0; batch < maxDuration; batch += BATCH_SIZE, batchIdx++)
         {
             if (batches[batchIdx])
             {
-                computeNeuronsBatchSIMD<skipTickFlag, BATCH_SIZE>(
+                computeNeuronsBatch<skipTickFlag, BATCH_SIZE>(
                     batch,
                     pNeuronIdices,
                     pNeuronSupplier,
                     skipTicksMap,
-                    neuronBuffer,
                     curCachedNeurons,
                     neurons32);
             }
