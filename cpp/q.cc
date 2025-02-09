@@ -18,7 +18,7 @@ using namespace Napi;
 Socket qsocket;
 string globalIp;
 
-typedef ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS> ScoreFunctionType;
+typedef ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS, 1> ScoreFunctionType;
 Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
 SolutionQueue *solutionQueue = nullptr;
@@ -212,7 +212,7 @@ public:
 
         for (unsigned long long i = 0; i < numberOfthreads; i++)
         {
-            thread thread_1 = thread(VerifySolutionThread, solutionQueue, new ScoreFunctionType(1), i);
+            thread thread_1 = thread(VerifySolutionThread, solutionQueue, new ScoreFunctionType(), i);
             threadsPool.push_back(move(thread_1));
         }
         for (auto &thread_1 : threadsPool)

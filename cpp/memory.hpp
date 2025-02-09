@@ -24,6 +24,17 @@ static inline bool allocatePool(unsigned long long size, void **buffer)
     return false;
 }
 
+static inline bool allocPoolWithErrorLog(const wchar_t *name, unsigned long long size, void **buffer, const int LINE)
+{
+    void *ptr = malloc(size);
+    if (ptr)
+    {
+        *buffer = ptr;
+        return true;
+    }
+    return false;
+}
+
 static inline void freePool(void *buffer)
 {
     free(buffer);
