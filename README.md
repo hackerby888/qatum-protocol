@@ -28,13 +28,17 @@ Create `.env` file on project's root folder and edit following variables
 # database (optional)
 MONGODB_URI = "mongodb://localhost:27017/"
 
+# admin login
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin"
+
 # main or verify
 MODE = "main"
 MAX_VERIFICATION_THREADS = 1
 HTTP_PORT = 3000
 QATUM_PORT = 3001
 CLUSTER_PORT = 3002
-NODE_IP = "1.1.1.1"
+NODE_IPS = "0.0.0.0,127.0.0.1"
 SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 # POOL = NET --> Solo Mode
