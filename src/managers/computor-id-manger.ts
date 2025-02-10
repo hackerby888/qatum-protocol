@@ -734,7 +734,8 @@ export namespace ComputorIdManager {
             //should only process when have latest solutions
             await SolutionManager.processPendingToGetProcessQueue();
         } else {
-            for (let computorId in computorIdMap) {
+            for (let i = 0; i < Object.keys(computorIdMap).length; i++) {
+                let computorId = Object.keys(computorIdMap)[i];
                 try {
                     let data = await Explorer.getTransactionsOfAId(
                         computorId,
@@ -795,6 +796,7 @@ export namespace ComputorIdManager {
                         }
                     }
                 } catch (error: any) {
+                    i--;
                     LOG(
                         "error",
                         "ComputorIdManager.fetchScoreV2: " + error.message
