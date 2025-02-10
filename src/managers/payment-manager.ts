@@ -49,6 +49,14 @@ namespace PaymentManager {
                 "wallet",
                 `removed epoch ${epoch} from payment list, remaining ${epochsNeedTopPay.length} epochs`
             );
+
+            if (epochsNeedTopPay.length === 0) {
+                disablePayment();
+                LOG(
+                    "wallet",
+                    `payment is disabled because no more epoch to pay`
+                );
+            }
         }
     }
 

@@ -16,6 +16,7 @@ import {
 import ApiData from "../utils/qli-apis/global-data";
 import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
 import jwt from "jsonwebtoken";
+import Explorer from "../utils/explorer";
 
 namespace HttpServer {
     function verifyTokenMiddleware(req: Request, res: any, next: any) {
@@ -378,7 +379,7 @@ namespace HttpServer {
                 ...WorkerManager.getGlobalStats(),
                 isShareModeEpoch:
                     NodeManager.difficulty.net !== NodeManager.difficulty.pool,
-                epoch: ComputorIdManager.ticksData.tickInfo.epoch,
+                epoch: Explorer.ticksData.tickInfo.epoch,
                 estimatedIts: ApiData.estimatedIts,
                 solutionsPerHour: ApiData.solutionsPerHour,
                 solutionsPerHourEpoch: ApiData.solutionsPerHourEpoch,

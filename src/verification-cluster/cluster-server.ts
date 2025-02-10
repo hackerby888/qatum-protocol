@@ -12,7 +12,6 @@ import { wait } from "../utils/wait";
 let threads = Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length;
 namespace VerificationClusterServer {
     export async function createServer(port: number) {
-        ClusterSocketManager.loadFromDisk();
         if (isNaN(port)) {
             return LOG(
                 "warning",

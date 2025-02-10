@@ -1,7 +1,6 @@
 import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
-import Platform from "../platform/platform";
 import {
     Solution,
     SolutionNetState,
@@ -14,6 +13,7 @@ import QatumDb from "../database/db";
 import { ComputorIdManager } from "./computor-id-manger";
 import WorkerManager from "./worker-manager";
 import { ONE_MINUTE } from "../consts/time";
+import Explorer from "../utils/explorer";
 
 namespace SolutionManager {
     let solutionsPendingToGetProcessQueue: Map<
@@ -110,7 +110,7 @@ namespace SolutionManager {
 
             fs.writeFileSync(
                 `${DATA_PATH}/solutions-${process.env.MODE}-${
-                    epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch
+                    epoch || Explorer?.ticksData?.tickInfo?.epoch
                 }.json`,
                 JSON.stringify(moduleData)
             );
@@ -127,7 +127,7 @@ namespace SolutionManager {
             let moduleData = JSON.parse(
                 fs.readFileSync(
                     `${DATA_PATH}/solutions-${process.env.MODE}-${
-                        epoch || ComputorIdManager.ticksData.tickInfo.epoch
+                        epoch || Explorer.ticksData.tickInfo.epoch
                     }.json`,
                     "utf-8"
                 )
@@ -161,7 +161,6 @@ namespace SolutionManager {
     }
 
     export function init() {
-        loadFromDisk();
         setInterval(() => {
             if (!NodeManager.initedVerifyThread) return;
             if (solutionVerifyingQueue.size < threads * 2) {

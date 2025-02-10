@@ -15,6 +15,7 @@ import WorkerManager from "./managers/worker-manager";
 import QatumDb from "./database/db";
 import PaymentManager from "./managers/payment-manager";
 import commandLineArgs from "command-line-args";
+import Explorer from "./utils/explorer";
 
 const optionDefinitions = [{ name: "mode", alias: "m", type: String }];
 const options = commandLineArgs(optionDefinitions);
@@ -37,6 +38,8 @@ async function main() {
                 "MONGODB_URI is not defined, skipping database connection (the pool still working)"
             );
         }
+        await Explorer.init();
+        Platform.loadData();
         await ComputorIdManager.init();
         WorkerManager.init();
         SolutionManager.init();

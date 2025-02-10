@@ -1,9 +1,9 @@
 import { DATA_PATH } from "../consts/path";
 import { ONE_DAY, THREE_MINUTES } from "../consts/time";
 import QatumDb from "../database/db";
-import { PaymentDbData, QWorker, QWorkerApi, Solution } from "../types/type";
+import { PaymentDbData, QWorker, QWorkerApi } from "../types/type";
+import Explorer from "../utils/explorer";
 import LOG from "../utils/logger";
-import { ComputorIdManager } from "./computor-id-manger";
 import { SolutionManager } from "./solution-manager";
 import fs from "fs";
 namespace WorkerManager {
@@ -33,7 +33,6 @@ namespace WorkerManager {
     let isDiskLoaded = false;
 
     export function init() {
-        loadFromDisk();
         watchGlobalStats();
     }
 
@@ -46,8 +45,7 @@ namespace WorkerManager {
         needToSetInactive: boolean = true
     ) {
         if (!isDiskLoaded) return;
-        let candicateEpoch =
-            epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch;
+        let candicateEpoch = epoch || Explorer?.ticksData?.tickInfo?.epoch;
         try {
             if (isNaN(candicateEpoch)) return;
 
@@ -76,8 +74,7 @@ namespace WorkerManager {
     }
 
     export function loadFromDisk(epoch?: number) {
-        let candicateEpoch =
-            epoch || ComputorIdManager.ticksData.tickInfo.epoch;
+        let candicateEpoch = epoch || Explorer.ticksData.tickInfo.epoch;
         try {
             let moduleData = JSON.parse(
                 fs.readFileSync(
@@ -306,6 +303,9 @@ namespace WorkerManager {
                 continue;
             rewardPaymentsArray.push(reward[wallet]);
         }
+        if (rewardPaymentsArray.length === 0) {
+            return LOG("wallet", "no reward to pay");
+        }
         QatumDb.insertRewardPayments(rewardPaymentsArray);
     }
 
@@ -331,6 +331,10 @@ namespace WorkerManager {
                 workersMap.delete(key);
             }
         });
+
+        globalStats.solutionsShare = 0;
+        globalStats.solutionsVerified = 0;
+        globalStats.solutionsWritten = 0;
     }
 }
 

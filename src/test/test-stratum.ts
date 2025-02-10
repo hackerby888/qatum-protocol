@@ -19,7 +19,7 @@ let socket = net.connect(Number(process.env.QATUM_PORT), "localhost", () => {
 socket.write(
     JSON.stringify({
         id: StratumEvents.eventsId.SUBSCRIBE,
-        wallet: "YMCJYLCWSGXJBERNBNIFQRSUZPBDKBMEVZGKMZQKYCKWLUHBCJBWAQAAZHIL",
+        wallet: "AAAJYLCWSGXJBERNBNIFQRSUZPBDKBMEVZGKMZQKYCKWLUHBCJBWAQAAZHIL",
         worker: "ww2",
     }) + "\n"
 );

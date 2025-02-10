@@ -7,7 +7,7 @@ import {
     Solution,
     SolutionNetState,
 } from "../types/type";
-import { ComputorIdManager } from "../managers/computor-id-manger";
+import Explorer from "../utils/explorer";
 
 namespace QatumDb {
     let database: Db;
@@ -49,7 +49,7 @@ namespace QatumDb {
         return solutionsCollection.insertOne({
             ...solution,
             insertedAt: Date.now(),
-            epoch: ComputorIdManager.ticksData.tickInfo.epoch,
+            epoch: Explorer.ticksData.tickInfo.epoch,
         });
     }
 

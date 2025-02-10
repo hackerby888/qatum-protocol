@@ -360,7 +360,7 @@ namespace NodeManager {
             LOG("node", "using node ip: " + nodeIps[i]);
             nodeIpsFailedMap[nodeIps[i]] = 0;
         }
-        loadFromDisk();
+
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
         initLogger();
