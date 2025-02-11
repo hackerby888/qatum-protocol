@@ -369,7 +369,7 @@ namespace SolutionManager {
         solutionClusterVerifyingQueue.delete(md5Hash);
 
         //we only store solution
-        if (isSolution)
+        if (isSolution && isShare)
             QatumDb.insertSolution(
                 solutionVerifiedQueue.get(md5Hash) as SolutionNetState
             );
