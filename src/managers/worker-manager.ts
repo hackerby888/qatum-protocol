@@ -1,6 +1,7 @@
 import { DATA_PATH } from "../consts/path";
 import { ONE_DAY, THREE_MINUTES } from "../consts/time";
 import QatumDb from "../database/db";
+import Platform from "../platform/platform";
 import { PaymentDbData, QWorker, QWorkerApi } from "../types/type";
 import Explorer from "../utils/explorer";
 import LOG from "../utils/logger";
@@ -40,11 +41,18 @@ namespace WorkerManager {
         return globalStats;
     }
 
-    export function saveToDisk(
+    export async function saveData(
         epoch?: number,
         needToSetInactive: boolean = true
     ) {
         if (!isDiskLoaded) return;
+        await saveToDisk(epoch, needToSetInactive);
+    }
+
+    export async function saveToDisk(
+        epoch?: number,
+        needToSetInactive: boolean = true
+    ) {
         let candicateEpoch = epoch || Explorer?.ticksData?.tickInfo?.epoch;
         try {
             if (isNaN(candicateEpoch)) return;
@@ -68,35 +76,35 @@ namespace WorkerManager {
         } catch (error: any) {
             LOG(
                 "error",
-                `failed to save workers-${candicateEpoch} to disk ${error}`
+                `WorkerManager.saveToDisk: failed to save workers-${candicateEpoch}.json ${error}`
             );
         }
     }
 
-    export function loadFromDisk(epoch?: number) {
-        let candicateEpoch = epoch || Explorer.ticksData.tickInfo.epoch;
+    export async function loadData(epoch?: number) {
+        await loadFromDisk(epoch);
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDisk(epoch?: number) {
         try {
             let moduleData = JSON.parse(
-                fs.readFileSync(
-                    `${DATA_PATH}/workers-${candicateEpoch}.json`,
-                    "utf-8"
-                )
+                fs.readFileSync(`${DATA_PATH}/workers-${epoch}.json`, "utf-8")
             );
             Object.entries(moduleData.workersMap).forEach(([key, value]) => {
                 // @ts-ignore
                 workersMap.set(key, new Map(Object.entries(value)));
             });
             globalStats = moduleData.globalStats;
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `workers-${candicateEpoch}.json not found, creating new one`
+                    `workers-${epoch}.json not found, will create new one`
                 );
-                isDiskLoaded = true;
             } else {
                 LOG("error", "WorkerManager.loadFromDisk: " + error.message);
+                await Platform.exit(1);
             }
         }
     }

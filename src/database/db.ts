@@ -11,7 +11,7 @@ import Explorer from "../utils/explorer";
 
 namespace QatumDb {
     let database: Db;
-    let solutionsCollection: Collection;
+
     export async function connectDB() {
         LOG(
             "sys",
@@ -25,7 +25,19 @@ namespace QatumDb {
         await dbClient.connect();
         QatumDb.setDb(dbClient.db("qatum") as Db);
 
-        getSolutionsCollection();
+        let collections = (await database.listCollections().toArray()).map(
+            (c) => c.name
+        );
+        if (!collections.includes("solutions")) {
+            await database.createCollection("solutions");
+
+            //create index for md5Hash
+            await getSolutionsCollection().createIndex(
+                { md5Hash: 1 },
+                { unique: true }
+            );
+            LOG("sys", "created solutions collection");
+        }
     }
 
     export function getDb() {
@@ -36,26 +48,75 @@ namespace QatumDb {
         database = db;
     }
 
-    export function getSolutionsCollection() {
+    export async function getPoolConfigType<T>(type: string) {
         if (!database) return;
-        if (!solutionsCollection) {
-            solutionsCollection = database.collection("solutions");
-        }
-        return solutionsCollection;
+        return (await getPoolConfigCollection().findOne(
+            {
+                type,
+            },
+            {
+                projection: {
+                    _id: 0,
+                    type: 0,
+                },
+            }
+        )) as unknown as T;
+    }
+
+    export async function setPoolConfigType<T>(type: string, data: T) {
+        if (!database) return;
+        return await getPoolConfigCollection().updateOne(
+            {
+                type,
+            },
+            {
+                //@ts-ignore
+                $set: data,
+            },
+            {
+                upsert: true,
+            }
+        );
+    }
+
+    export function getPoolConfigCollection() {
+        return database.collection("config");
+    }
+
+    export function getSolutionsCollection() {
+        return database.collection("solutions");
+    }
+
+    export async function getSolutionsInEpoch(epoch: number) {
+        if (!database) return;
+        return await getSolutionsCollection()
+            .find({ epoch })
+            .project({
+                _id: 0,
+                md5Hash: 1,
+                isSolution: 1,
+                isWritten: 1,
+                isShare: 1,
+                from: 1,
+            })
+            .toArray();
     }
 
     export function insertSolution(solution: SolutionNetState) {
-        if (!database) return;
-        return solutionsCollection.insertOne({
-            ...solution,
-            insertedAt: Date.now(),
-            epoch: Explorer.ticksData.tickInfo.epoch,
-        });
+        try {
+            if (!database) return;
+            return getSolutionsCollection().insertOne({
+                ...solution,
+                epoch: Explorer.ticksData.tickInfo.epoch,
+            });
+        } catch (e: any) {
+            LOG("error", `QatumDb.insertSolution: ${e.message}`);
+        }
     }
 
     export function setIsWrittenSolution(md5Hash: string) {
         if (!database) return;
-        solutionsCollection.updateOne(
+        getSolutionsCollection().updateOne(
             { md5Hash },
             { $set: { isWritten: true } }
         );

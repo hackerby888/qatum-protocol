@@ -13,35 +13,65 @@ import { wait } from "./wait";
 import { DATA_PATH } from "../consts/path";
 import fs from "fs";
 import LOG from "./logger";
+import QatumDb from "../database/db";
+import Platform from "../platform/platform";
 
 namespace Explorer {
     export let ticksData: TickInfo;
     export let currentEpoch: number = 0;
     let isDiskLoaded = false;
-    export function loadFromDisk() {
+
+    export async function loadData() {
+        await loadFromDisk();
+        await loadFromDb();
+        currentEpoch = ticksData.tickInfo.epoch;
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDb() {
+        let dbTicksData = await QatumDb.getPoolConfigType("ticks-data");
+        if (dbTicksData) {
+            ticksData = {
+                ...ticksData,
+                ...dbTicksData,
+            };
+        }
+    }
+
+    export async function loadFromDisk() {
         try {
             ticksData = JSON.parse(
                 fs.readFileSync(`${DATA_PATH}/ticksData.json`).toString()
             );
-            currentEpoch = ticksData.tickInfo.epoch;
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                isDiskLoaded = true;
-                LOG("sys", `ticksData.json not found, creating new one`);
+                LOG("sys", `ticksData.json not found, will create new one`);
             } else {
                 LOG("error", "Explorer.loadFromDisk" + error.message);
+                await Platform.exit(1);
             }
         }
     }
 
-    export function saveToDisk() {
+    export async function saveData() {
         if (!isDiskLoaded) return;
+        await saveToDisk();
+        await saveToDb();
+    }
 
-        fs.writeFileSync(
-            `${DATA_PATH}/ticksData.json`,
-            JSON.stringify(ticksData)
-        );
+    export async function saveToDb() {
+        await QatumDb.setPoolConfigType("ticks-data", ticksData);
+    }
+
+    export async function saveToDisk() {
+        try {
+            fs.writeFileSync(
+                `${DATA_PATH}/ticksData.json`,
+                JSON.stringify(ticksData)
+            );
+        } catch (error: any) {
+            LOG("error", `Explorer.saveToDisk: ${error.message}`);
+        }
     }
 
     export function getSolutionDataFromTransaction(
@@ -80,8 +110,6 @@ namespace Explorer {
     export async function init() {
         try {
             await Explorer.syncTicksData();
-            //should overwrite if disk data exists
-            loadFromDisk();
         } catch (error: any) {
             LOG(
                 "error",
@@ -168,6 +196,7 @@ namespace Explorer {
                                     transaction.sourceId
                             ),
                             submittedAt: 0,
+                            from: "network",
                         });
                 }
 

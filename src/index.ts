@@ -39,7 +39,7 @@ async function main() {
             );
         }
         await Explorer.init();
-        Platform.loadData();
+        await Platform.loadData();
         await ComputorIdManager.init();
         WorkerManager.init();
         SolutionManager.init();
@@ -56,7 +56,7 @@ async function main() {
     } else if (mode === "verify") {
         if (!process.env.CLUSTER_MAIN_SERVER) {
             LOG("error", "CLUSTER_MAIN_SERVER is not defined");
-            Platform.exit(1);
+            await Platform.exit(1);
         }
         NodeManager.initLogger();
         VerificationClusterServer.connectToServer(
@@ -68,17 +68,17 @@ async function main() {
         );
     } else {
         LOG("error", "mode is not defined");
-        Platform.exit(1);
+        await Platform.exit(1);
     }
 }
 
 main();
 
-process.on("SIGINT", () => {
-    Platform.exit(0);
+process.on("SIGINT", async () => {
+    await Platform.exit(0);
 });
 
-process.on("uncaughtException", (err) => {
+process.on("uncaughtException", async (err) => {
     LOG("error", err.message);
-    Platform.exit(1);
+    await Platform.exit(1);
 });

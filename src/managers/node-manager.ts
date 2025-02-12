@@ -3,19 +3,18 @@ import LOG from "../utils/logger";
 import { SocketManager } from "./socket-manager";
 import QatumEvents from "../qatum/qatum-events";
 import { FIVE_SECONDS, ONE_MINUTE, ONE_SECOND } from "../consts/time";
-import { ComputorIdManager } from "./computor-id-manger";
 import Platform from "../platform/platform";
-import { md5 } from "hash-wasm";
 import { SolutionManager } from "./solution-manager";
 import {
+    DifficultyConfig,
     PaymentQutilData,
     Solution,
-    SolutionData,
     SolutionResult,
 } from "../types/type";
 import fs from "fs";
 import os from "os";
 import { DATA_PATH } from "../consts/path";
+import QatumDb from "../database/db";
 
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
@@ -68,7 +67,7 @@ namespace NodeManager {
 
     let isDiskLoaded = false;
 
-    export let difficulty = {
+    export let difficulty: DifficultyConfig = {
         pool: Number(process.env.INITIAL_POOL_DIFFICULTY),
         net: Number(process.env.INITIAL_NET_DIFFICULTY),
     };
@@ -77,10 +76,30 @@ namespace NodeManager {
 
     export let initedVerifyThread: boolean = false;
 
-    export function saveToDisk() {
-        try {
-            if (!isDiskLoaded) return;
+    export async function saveData() {
+        if (!isDiskLoaded) return;
+        await saveToDisk();
+        await saveToDb();
+    }
 
+    export async function saveToDb() {
+        await QatumDb.getPoolConfigCollection().updateOne(
+            {
+                type: "difficulty",
+            },
+            {
+                $set: {
+                    ...difficulty,
+                },
+            },
+            {
+                upsert: true,
+            }
+        );
+    }
+
+    export async function saveToDisk() {
+        try {
             fs.writeFileSync(
                 `${DATA_PATH}/difficulty.json`,
                 JSON.stringify(difficulty)
@@ -98,30 +117,68 @@ namespace NodeManager {
         }
     }
 
-    export function loadFromDisk() {
+    export async function loadData() {
+        await loadFromDisk();
+        await loadFromDb();
+
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDb() {
+        let dbDifficulty = (await QatumDb.getPoolConfigCollection().findOne(
+            {
+                type: "difficulty",
+            },
+            {
+                projection: {
+                    _id: 0,
+                    type: 0,
+                },
+            }
+        )) as any as DifficultyConfig;
+
+        if (dbDifficulty) {
+            difficulty = {
+                ...difficulty,
+                ...dbDifficulty,
+            };
+        }
+    }
+
+    export async function loadFromDisk() {
         try {
             let diskDifficulty = JSON.parse(
                 fs.readFileSync(`${DATA_PATH}/difficulty.json`, "utf-8")
             );
+
+            difficulty = diskDifficulty;
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("sys", `difficulty.json  not found, will create new one`);
+            } else {
+                LOG("error", "NodeManager.loadFromDisk: " + error.message);
+                await Platform.exit(1);
+            }
+        }
+
+        try {
             let diskSolutionsToSubmitQueue = JSON.parse(
                 fs.readFileSync(
                     `${DATA_PATH}/solutionsToSubmitQueue.json`,
                     "utf-8"
                 )
             );
-            difficulty = diskDifficulty;
-            solutionsToSubmitQueue = diskSolutionsToSubmitQueue;
 
-            isDiskLoaded = true;
+            solutionsToSubmitQueue = diskSolutionsToSubmitQueue;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `difficulty.json or solutionsToSubmitQueue.json not found, creating new one`
+                    `solutionsToSubmitQueue.json not found, will create new one`
                 );
-                isDiskLoaded = true;
             } else {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
+                await Platform.exit(1);
             }
         }
     }

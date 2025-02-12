@@ -21,6 +21,8 @@ import qliFetch from "../utils/qli-apis/qli-fetch";
 import WorkerManager from "./worker-manager";
 import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
 import Explorer from "../utils/explorer";
+import PaymentManager from "./payment-manager";
+import QatumDb from "../database/db";
 
 export namespace ComputorIdManager {
     let miningConfig: MiningConfig = {
@@ -129,28 +131,47 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function saveToDisk(
+    export async function saveData(
         epoch?: number,
         needToDeleteWorkers: boolean = true
     ) {
         if (!isDiskLoaded) return;
-        let clone = structuredClone(computorIdMap);
-        deleteAllWorkersForAllComputorId(clone);
+        await saveToDisk(epoch, needToDeleteWorkers);
+        await saveToDb();
+    }
 
-        if (needToDeleteWorkers) {
-            deleteAllWorkersForAllComputorId(computorIdMap);
+    export async function saveToDb() {
+        await QatumDb.setPoolConfigType<MiningConfig>(
+            "mining-config",
+            miningConfig
+        );
+    }
+
+    export async function saveToDisk(
+        epoch?: number,
+        needToDeleteWorkers: boolean = true
+    ) {
+        try {
+            let clone = structuredClone(computorIdMap);
+            deleteAllWorkersForAllComputorId(clone);
+
+            if (needToDeleteWorkers) {
+                deleteAllWorkersForAllComputorId(computorIdMap);
+            }
+            resetTargetForAllComputorId();
+            fs.writeFileSync(
+                `${DATA_PATH}/computorIdMap-${
+                    epoch || Explorer.ticksData?.tickInfo?.epoch
+                }.json`,
+                JSON.stringify(clone)
+            );
+            fs.writeFileSync(
+                `${DATA_PATH}/miningConfig.json`,
+                JSON.stringify(miningConfig)
+            );
+        } catch (error: any) {
+            LOG("error", `ComputorIdManager.saveToDisk: ${error.message}`);
         }
-        resetTargetForAllComputorId();
-        fs.writeFileSync(
-            `${DATA_PATH}/computorIdMap-${
-                epoch || Explorer.ticksData?.tickInfo?.epoch
-            }.json`,
-            JSON.stringify(clone)
-        );
-        fs.writeFileSync(
-            `${DATA_PATH}/miningConfig.json`,
-            JSON.stringify(miningConfig)
-        );
     }
 
     export function resetTargetForAllComputorId() {
@@ -159,38 +180,53 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function loadFromDisk(epoch?: number) {
-        let candicateEpoch = epoch || Explorer.ticksData?.tickInfo?.epoch;
+    export async function loadData(epoch?: number) {
+        await loadFromDisk(epoch);
+        await loadFromDb();
+
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDb() {
+        let dbMiningConfig = await QatumDb.getPoolConfigType<MiningConfig>(
+            "mining-config"
+        );
+
+        if (dbMiningConfig) {
+            miningConfig = {
+                ...miningConfig,
+                ...dbMiningConfig,
+            };
+        }
+    }
+
+    export async function loadFromDisk(epoch?: number) {
         try {
-            if (!candicateEpoch) {
+            if (!epoch) {
                 LOG(
                     "error",
                     "ComputorIdManager.loadFromDisk: epoch not found (no tick data)"
                 );
-                Platform.exit(1);
+                await Platform.exit(1);
             }
 
             computorIdMap = JSON.parse(
                 fs
-                    .readFileSync(
-                        `${DATA_PATH}/computorIdMap-${candicateEpoch}.json`
-                    )
+                    .readFileSync(`${DATA_PATH}/computorIdMap-${epoch}.json`)
                     .toString()
             );
-
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `computorIdMap-${candicateEpoch}.json not found, creating new one`
+                    `computorIdMap-${epoch}.json not found, will create new one`
                 );
-                isDiskLoaded = true;
             } else {
                 LOG(
                     "error",
                     "ComputorIdManager.loadFromDisk: " + error.message
                 );
+                await Platform.exit(1);
             }
         }
 
@@ -200,9 +236,10 @@ export namespace ComputorIdManager {
             );
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `miningConfig.json not found, creating new one`);
+                LOG("sys", `miningConfig.json not found, will create new one`);
             } else {
                 LOG("error", "ComputorIdManager.loadFromDisk" + error.message);
+                await Platform.exit(1);
             }
         }
     }
@@ -646,7 +683,7 @@ export namespace ComputorIdManager {
         ) {
             //new epoch
             LOG("sys", `new epoch ${Explorer.ticksData.tickInfo.epoch}`);
-            WorkerManager.calculateAndInsertRewardPayments(
+            PaymentManager.calculateAndInsertRewardPayments(
                 Explorer.currentEpoch
             );
             WorkerManager.saveToDisk(Explorer.currentEpoch, false);

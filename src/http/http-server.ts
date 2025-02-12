@@ -168,7 +168,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/mining-config", verifyTokenMiddleware, (req, res) => {
+        app.post("/mining-config", verifyTokenMiddleware, async (req, res) => {
             try {
                 let miningConfig: MiningConfig = req.body as any;
                 if (!miningConfig) {
@@ -178,6 +178,7 @@ namespace HttpServer {
                     return;
                 }
                 ComputorIdManager.setMiningConfig(miningConfig);
+                await ComputorIdManager.saveToDb();
                 res.status(200).send({
                     isOk: true,
                 });
@@ -400,7 +401,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/difficulty", verifyTokenMiddleware, (req, res) => {
+        app.post("/difficulty", verifyTokenMiddleware, async (req, res) => {
             try {
                 let difficulty = req.body.difficulty as {
                     pool?: number;
@@ -415,7 +416,7 @@ namespace HttpServer {
                 }
 
                 NodeManager.setDifficulty(difficulty);
-
+                await NodeManager.saveToDb();
                 res.status(200).send({
                     isOk: true,
                 });
