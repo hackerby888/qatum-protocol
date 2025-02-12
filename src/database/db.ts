@@ -32,7 +32,7 @@ namespace QatumDb {
             await database.createCollection("solutions");
 
             //create index for md5Hash
-            await getSolutionsCollection().createIndex(
+            await getSolutionsCollection()?.createIndex(
                 { md5Hash: 1 },
                 { unique: true }
             );
@@ -50,7 +50,7 @@ namespace QatumDb {
 
     export async function getPoolConfigType<T>(type: string) {
         if (!database) return;
-        return (await getPoolConfigCollection().findOne(
+        return (await getPoolConfigCollection()?.findOne(
             {
                 type,
             },
@@ -65,7 +65,7 @@ namespace QatumDb {
 
     export async function setPoolConfigType<T>(type: string, data: T) {
         if (!database) return;
-        return await getPoolConfigCollection().updateOne(
+        return await getPoolConfigCollection()?.updateOne(
             {
                 type,
             },
@@ -80,17 +80,19 @@ namespace QatumDb {
     }
 
     export function getPoolConfigCollection() {
+        if (!database) return;
         return database.collection("config");
     }
 
     export function getSolutionsCollection() {
+        if (!database) return;
         return database.collection("solutions");
     }
 
     export async function getSolutionsInEpoch(epoch: number) {
         if (!database) return;
         return await getSolutionsCollection()
-            .find({ epoch })
+            ?.find({ epoch })
             .project({
                 _id: 0,
                 md5Hash: 1,
@@ -105,7 +107,7 @@ namespace QatumDb {
     export function insertSolution(solution: SolutionNetState) {
         try {
             if (!database) return;
-            return getSolutionsCollection().insertOne({
+            return getSolutionsCollection()?.insertOne({
                 ...solution,
                 epoch: Explorer.ticksData.tickInfo.epoch,
             });
@@ -116,7 +118,7 @@ namespace QatumDb {
 
     export function setIsWrittenSolution(md5Hash: string) {
         if (!database) return;
-        getSolutionsCollection().updateOne(
+        getSolutionsCollection()?.updateOne(
             { md5Hash },
             { $set: { isWritten: true } }
         );

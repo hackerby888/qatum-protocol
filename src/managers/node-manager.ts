@@ -83,7 +83,7 @@ namespace NodeManager {
     }
 
     export async function saveToDb() {
-        await QatumDb.getPoolConfigCollection().updateOne(
+        await QatumDb.getPoolConfigCollection()?.updateOne(
             {
                 type: "difficulty",
             },
@@ -125,7 +125,7 @@ namespace NodeManager {
     }
 
     export async function loadFromDb() {
-        let dbDifficulty = (await QatumDb.getPoolConfigCollection().findOne(
+        let dbDifficulty = (await QatumDb.getPoolConfigCollection()?.findOne(
             {
                 type: "difficulty",
             },
