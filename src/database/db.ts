@@ -6,6 +6,7 @@ import {
     PaymentDbDataWithReward,
     Solution,
     SolutionNetState,
+    TotalSolutionsStats,
 } from "../types/type";
 import Explorer from "../utils/explorer";
 
@@ -150,31 +151,30 @@ namespace QatumDb {
 
     export async function getTotalSolutions(epoch: number) {
         if (!database) return;
-        let allPayments = await database
-            .collection("payments")
-            .find({ epoch })
-            .toArray();
 
-        let totalSolutionsShare = allPayments.reduce(
-            (acc, payment) => acc + payment.solutionsShare,
-            0
-        );
+        let totalSolutionsShare =
+            await QatumDb.getSolutionsCollection()?.countDocuments({
+                epoch: epoch,
+                isShare: true,
+            });
 
-        let totalSolutionsWritten = allPayments.reduce(
-            (acc, payment) => acc + payment.solutionsWritten,
-            0
-        );
+        let totalSolutionsWritten =
+            await QatumDb.getSolutionsCollection()?.countDocuments({
+                epoch: epoch,
+                isWritten: true,
+            });
 
-        let totalSolutionVerified = allPayments.reduce(
-            (acc, payment) => acc + payment.solutionsVerified,
-            0
-        );
+        let totalSolutionVerified =
+            await QatumDb.getSolutionsCollection()?.countDocuments({
+                epoch: epoch,
+                isSolution: true,
+            });
 
         return {
             totalSolutionsShare,
             totalSolutionsWritten,
             totalSolutionVerified,
-        };
+        } as TotalSolutionsStats;
     }
 
     export async function getPaymentsAlongWithSolutionsValue(

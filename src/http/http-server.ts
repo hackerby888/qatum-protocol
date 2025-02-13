@@ -365,12 +365,22 @@ namespace HttpServer {
             }
         );
 
-        app.get("/solutions", verifyTokenMiddleware, (req, res) => {
+        app.get("/solutions", verifyTokenMiddleware, async (req, res) => {
             try {
-                res.send({
-                    ...SolutionManager.toJson(),
-                    solutionsToSubmitQueue: NodeManager.solutionsToSubmitQueue,
-                });
+                let epoch = Number(req.query.epoch);
+                if (
+                    isNaN(epoch) ||
+                    epoch === Explorer.ticksData.tickInfo.epoch
+                ) {
+                    res.send({
+                        ...SolutionManager.toJson(),
+                        solutionsToSubmitQueue:
+                            NodeManager.solutionsToSubmitQueue,
+                    });
+                } else {
+                    //query from db
+                    res.send(await QatumDb.getTotalSolutions(epoch));
+                }
             } catch (e: any) {
                 res.status(500).send({
                     error: e.message,
