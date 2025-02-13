@@ -158,7 +158,7 @@ namespace SolutionManager {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `solutions-${process.env.MODE}.json not found, will create new one`
+                    `solutions-${process.env.MODE}-${epoch}.json not found, will create new one`
                 );
             } else {
                 LOG("error", "SolutionManager.loadFromDisk: " + error.message);

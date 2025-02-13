@@ -72,7 +72,7 @@ namespace NodeManager {
         net: Number(process.env.INITIAL_NET_DIFFICULTY),
     };
 
-    let solutionsToSubmitQueue: Solution[] = [];
+    export let solutionsToSubmitQueue: Solution[] = [];
 
     export let initedVerifyThread: boolean = false;
 
@@ -216,8 +216,12 @@ namespace NodeManager {
             }
         }
 
-        nodeIps = cloneNodeIps.length > 0 ? cloneNodeIps : [...nodeIpsInactive];
-        nodeIpsInactive = [];
+        if (cloneNodeIps.length > 0) {
+            nodeIps = cloneNodeIps;
+        } else {
+            nodeIps = [...nodeIpsInactive];
+            nodeIpsInactive = [];
+        }
     }
 
     export function setDifficulty(newDiff: { pool?: number; net?: number }) {

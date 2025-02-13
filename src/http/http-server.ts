@@ -367,7 +367,10 @@ namespace HttpServer {
 
         app.get("/solutions", verifyTokenMiddleware, (req, res) => {
             try {
-                res.send(SolutionManager.toJson());
+                res.send({
+                    ...SolutionManager.toJson(),
+                    solutionsToSubmitQueue: NodeManager.solutionsToSubmitQueue,
+                });
             } catch (e: any) {
                 res.status(500).send({
                     error: e.message,
