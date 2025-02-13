@@ -43,10 +43,10 @@ export interface Solution {
     computorId: string;
     md5Hash: string;
     submittedAt: number;
+    from: string; //wallet
 }
 
 export type SolutionPendingToProcess = Solution & {
-    wallet: string;
     workerUUID: string;
 };
 
@@ -197,6 +197,17 @@ export interface NodesApiPostData {
         add: string[];
         delete: string[];
     };
+}
+
+export interface DifficultyConfig {
+    pool: number;
+    net: number;
+}
+
+export interface TotalSolutionsStats {
+    totalSolutionsShare: number;
+    totalSolutionsWritten: number;
+    totalSolutionVerified: number;
 }
 
 export type PaymentDbState = "all" | "unpaid" | "paid";

@@ -2,9 +2,12 @@ import e from "express";
 import { ONE_MINUTE } from "../consts/time";
 import QatumDb from "../database/db";
 import NodeManager from "./node-manager";
-import { PaymentQutilData, Transaction } from "../types/type";
+import {
+    PaymentDbData,
+    PaymentQutilData,
+    SolutionNetState,
+} from "../types/type";
 import LOG from "../utils/logger";
-import { qfetch } from "../utils/qfetch";
 import Explorer from "../utils/explorer";
 
 namespace PaymentManager {
@@ -49,6 +52,14 @@ namespace PaymentManager {
                 "wallet",
                 `removed epoch ${epoch} from payment list, remaining ${epochsNeedTopPay.length} epochs`
             );
+
+            if (epochsNeedTopPay.length === 0) {
+                disablePayment();
+                LOG(
+                    "wallet",
+                    `payment is disabled because no more epoch to pay`
+                );
+            }
         }
     }
 
@@ -60,6 +71,57 @@ namespace PaymentManager {
         } else {
             return false;
         }
+    }
+
+    export async function calculateAndInsertRewardPayments(epoch: number) {
+        let reward: {
+            [wallet: string]: PaymentDbData;
+        } = {};
+
+        let solutionsDataInEpoch: SolutionNetState[] =
+            (await QatumDb.getSolutionsInEpoch(epoch)) as SolutionNetState[];
+
+        if (!solutionsDataInEpoch) return;
+
+        for (let i = 0; i < solutionsDataInEpoch.length; i++) {
+            let wallet = solutionsDataInEpoch[i].from;
+            if (reward[wallet] === undefined) {
+                reward[wallet] = {
+                    solutionsShare: 0,
+                    solutionsVerified: 0,
+                    solutionsWritten: 0,
+                    epoch,
+                    insertedAt: Date.now(),
+                    wallet,
+                    isPaid: false,
+                    txId: null,
+                };
+            }
+
+            if (solutionsDataInEpoch[i].isSolution) {
+                reward[wallet].solutionsVerified++;
+            }
+            if (solutionsDataInEpoch[i].isWritten) {
+                reward[wallet].solutionsWritten++;
+            }
+            if (solutionsDataInEpoch[i].isShare) {
+                reward[wallet].solutionsShare++;
+            }
+        }
+
+        let rewardPaymentsArray = [];
+        for (let wallet in reward) {
+            if (
+                reward[wallet].solutionsShare === 0 &&
+                reward[wallet].solutionsWritten === 0
+            )
+                continue;
+            rewardPaymentsArray.push(reward[wallet]);
+        }
+        if (rewardPaymentsArray.length === 0) {
+            return LOG("wallet", "no reward to pay");
+        }
+        QatumDb.insertRewardPayments(rewardPaymentsArray);
     }
 
     export function watchAndPay() {

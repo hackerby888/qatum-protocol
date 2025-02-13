@@ -9,6 +9,14 @@ import NodeManager from "../managers/node-manager";
 import { SocketManager } from "../managers/socket-manager";
 import { SolutionManager } from "../managers/solution-manager";
 import WorkerManager from "../managers/worker-manager";
+import { RateLimiterMemory } from "rate-limiter-flexible";
+
+const rateLimitOptions = {
+    points: 10,
+    duration: 1,
+};
+
+const rateLimiter = new RateLimiterMemory(rateLimitOptions);
 
 namespace QatumServer {
     export async function createServer(port: number): Promise<void> {
@@ -20,6 +28,25 @@ namespace QatumServer {
             let buffer: string = "";
 
             const handler = async (data: string) => {
+                try {
+                    await rateLimiter
+                        .consume(
+                            (socket.remoteAddress as string) || "unknown",
+                            1
+                        )
+                        .then((rateLimiterRes) => {
+                            if (rateLimiterRes.remainingPoints <= 0) {
+                                throw new Error("Rate limit exceeded");
+                            }
+                        });
+                } catch (e: any) {
+                    LOG(
+                        "error",
+                        "QatumServer.createServer.handler: " +
+                            `rate limit exceeded for ${socket.remoteAddress}`
+                    );
+                    return;
+                }
                 let jsonObj = JSON.parse(data);
                 switch (jsonObj.id) {
                     case QatumEvents.eventsId.SUBSCRIBE:
