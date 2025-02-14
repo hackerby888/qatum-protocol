@@ -1,7 +1,6 @@
 import { md5 } from "hash-wasm";
 import NodeManager from "./node-manager";
 import os from "os";
-import Platform from "../platform/platform";
 import {
     Solution,
     SolutionNetState,
@@ -14,6 +13,8 @@ import QatumDb from "../database/db";
 import { ComputorIdManager } from "./computor-id-manger";
 import WorkerManager from "./worker-manager";
 import { ONE_MINUTE } from "../consts/time";
+import Explorer from "../utils/explorer";
+import Platform from "../platform/platform";
 
 namespace SolutionManager {
     let solutionsPendingToGetProcessQueue: Map<
@@ -93,9 +94,13 @@ namespace SolutionManager {
         return dataArray;
     }
 
-    export function saveToDisk(epoch?: number) {
+    export async function saveData() {
+        if (!isDiskLoaded) return;
+        await saveToDisk();
+    }
+
+    export async function saveToDisk(epoch?: number) {
         try {
-            if (!isDiskLoaded) return;
             let moduleData = toJson("object");
 
             //add to solutionQueue again, verifying sols will be processed again
@@ -110,7 +115,7 @@ namespace SolutionManager {
 
             fs.writeFileSync(
                 `${DATA_PATH}/solutions-${process.env.MODE}-${
-                    epoch || ComputorIdManager?.ticksData?.tickInfo?.epoch
+                    epoch || Explorer?.ticksData?.tickInfo?.epoch
                 }.json`,
                 JSON.stringify(moduleData)
             );
@@ -122,13 +127,16 @@ namespace SolutionManager {
         }
     }
 
-    export function loadFromDisk(epoch?: number) {
+    export async function loadData(epoch?: number) {
+        await loadFromDisk(epoch);
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDisk(epoch?: number) {
         try {
             let moduleData = JSON.parse(
                 fs.readFileSync(
-                    `${DATA_PATH}/solutions-${process.env.MODE}-${
-                        epoch || ComputorIdManager.ticksData.tickInfo.epoch
-                    }.json`,
+                    `${DATA_PATH}/solutions-${process.env.MODE}-${epoch}.json`,
                     "utf-8"
                 )
             );
@@ -146,22 +154,20 @@ namespace SolutionManager {
             solutionsPendingToGetProcessQueue = new Map(
                 Object.entries(moduleData.solutionsPendingToGetProcessQueue)
             );
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `solutions-${process.env.MODE}.json not found, creating new one`
+                    `solutions-${process.env.MODE}-${epoch}.json not found, will create new one`
                 );
-                isDiskLoaded = true;
             } else {
                 LOG("error", "SolutionManager.loadFromDisk: " + error.message);
+                await Platform.exit(1);
             }
         }
     }
 
     export function init() {
-        loadFromDisk();
         setInterval(() => {
             if (!NodeManager.initedVerifyThread) return;
             if (solutionVerifyingQueue.size < threads * 2) {
@@ -204,6 +210,7 @@ namespace SolutionManager {
             computorId: solution.computorId,
             md5Hash,
             submittedAt: solution.submittedAt,
+            from: solution.from,
         });
 
         return md5Hash;
@@ -231,7 +238,7 @@ namespace SolutionManager {
             nonce,
             computorId,
             md5Hash,
-            wallet,
+            from: wallet,
             workerUUID,
             submittedAt: Date.now(),
         });
@@ -262,7 +269,7 @@ namespace SolutionManager {
             }
 
             WorkerManager.pushSolution(
-                solution.wallet,
+                solution.from,
                 solution.workerUUID,
                 md5Hash
             );
@@ -370,7 +377,7 @@ namespace SolutionManager {
         solutionClusterVerifyingQueue.delete(md5Hash);
 
         //we only store solution
-        if (isSolution)
+        if (isSolution || isShare)
             QatumDb.insertSolution(
                 solutionVerifiedQueue.get(md5Hash) as SolutionNetState
             );

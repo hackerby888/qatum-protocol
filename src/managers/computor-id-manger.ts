@@ -8,14 +8,10 @@ import {
     ComputorIdDataApi,
     ComputorIdDataMap,
     MiningConfig,
-    Solution,
     SolutionData,
-    TickData,
-    TickInfo,
     Transaction,
 } from "../types/type";
 import LOG from "../utils/logger";
-import { qfetch } from "../utils/qfetch";
 import ApiData from "../utils/qli-apis/global-data";
 import syncAvgScore from "../utils/qli-apis/sync-avg-score";
 import { SocketManager } from "./socket-manager";
@@ -24,8 +20,9 @@ import { SolutionManager } from "./solution-manager";
 import qliFetch from "../utils/qli-apis/qli-fetch";
 import WorkerManager from "./worker-manager";
 import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
-import { wait } from "../utils/wait";
 import Explorer from "../utils/explorer";
+import PaymentManager from "./payment-manager";
+import QatumDb from "../database/db";
 
 export namespace ComputorIdManager {
     let miningConfig: MiningConfig = {
@@ -36,8 +33,6 @@ export namespace ComputorIdManager {
 
     let computorIdMap: ComputorIdDataMap = {};
 
-    let currentEpoch: number = 0;
-    export let ticksData: TickInfo;
     let lastTick = 0;
 
     let isFetchingScore = false;
@@ -136,28 +131,47 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function saveToDisk(
+    export async function saveData(
         epoch?: number,
         needToDeleteWorkers: boolean = true
     ) {
         if (!isDiskLoaded) return;
-        let clone = structuredClone(computorIdMap);
-        deleteAllWorkersForAllComputorId(clone);
+        await saveToDisk(epoch, needToDeleteWorkers);
+        await saveToDb();
+    }
 
-        if (needToDeleteWorkers) {
-            deleteAllWorkersForAllComputorId(computorIdMap);
+    export async function saveToDb() {
+        await QatumDb.setPoolConfigType<MiningConfig>(
+            "mining-config",
+            miningConfig
+        );
+    }
+
+    export async function saveToDisk(
+        epoch?: number,
+        needToDeleteWorkers: boolean = true
+    ) {
+        try {
+            let clone = structuredClone(computorIdMap);
+            deleteAllWorkersForAllComputorId(clone);
+
+            if (needToDeleteWorkers) {
+                deleteAllWorkersForAllComputorId(computorIdMap);
+            }
+            resetTargetForAllComputorId();
+            fs.writeFileSync(
+                `${DATA_PATH}/computorIdMap-${
+                    epoch || Explorer.ticksData?.tickInfo?.epoch
+                }.json`,
+                JSON.stringify(clone)
+            );
+            fs.writeFileSync(
+                `${DATA_PATH}/miningConfig.json`,
+                JSON.stringify(miningConfig)
+            );
+        } catch (error: any) {
+            LOG("error", `ComputorIdManager.saveToDisk: ${error.message}`);
         }
-        resetTargetForAllComputorId();
-        fs.writeFileSync(
-            `${DATA_PATH}/computorIdMap-${
-                epoch || ticksData?.tickInfo?.epoch
-            }.json`,
-            JSON.stringify(clone)
-        );
-        fs.writeFileSync(
-            `${DATA_PATH}/miningConfig.json`,
-            JSON.stringify(miningConfig)
-        );
     }
 
     export function resetTargetForAllComputorId() {
@@ -166,38 +180,53 @@ export namespace ComputorIdManager {
         }
     }
 
-    export function loadFromDisk(epoch?: number) {
-        let candicateEpoch = epoch || ticksData?.tickInfo?.epoch;
+    export async function loadData(epoch?: number) {
+        await loadFromDisk(epoch);
+        await loadFromDb();
+
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDb() {
+        let dbMiningConfig = await QatumDb.getPoolConfigType<MiningConfig>(
+            "mining-config"
+        );
+
+        if (dbMiningConfig) {
+            miningConfig = {
+                ...miningConfig,
+                ...dbMiningConfig,
+            };
+        }
+    }
+
+    export async function loadFromDisk(epoch?: number) {
         try {
-            if (!candicateEpoch) {
+            if (!epoch) {
                 LOG(
                     "error",
                     "ComputorIdManager.loadFromDisk: epoch not found (no tick data)"
                 );
-                Platform.exit(1);
+                await Platform.exit(1);
             }
 
             computorIdMap = JSON.parse(
                 fs
-                    .readFileSync(
-                        `${DATA_PATH}/computorIdMap-${candicateEpoch}.json`
-                    )
+                    .readFileSync(`${DATA_PATH}/computorIdMap-${epoch}.json`)
                     .toString()
             );
-
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
                 LOG(
                     "sys",
-                    `computorIdMap-${candicateEpoch}.json not found, creating new one`
+                    `computorIdMap-${epoch}.json not found, will create new one`
                 );
-                isDiskLoaded = true;
             } else {
                 LOG(
                     "error",
                     "ComputorIdManager.loadFromDisk: " + error.message
                 );
+                await Platform.exit(1);
             }
         }
 
@@ -207,9 +236,10 @@ export namespace ComputorIdManager {
             );
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `miningConfig.json not found, creating new one`);
+                LOG("sys", `miningConfig.json not found, will create new one`);
             } else {
                 LOG("error", "ComputorIdManager.loadFromDisk" + error.message);
+                await Platform.exit(1);
             }
         }
     }
@@ -227,16 +257,7 @@ export namespace ComputorIdManager {
 
     export async function init() {
         LOG("sys", "init computor id manager");
-        try {
-            await syncTicksData();
-        } catch (error: any) {
-            LOG(
-                "error",
-                "ComputorIdManager.init: failed to connect to qubic rpc server"
-            );
-            Platform.exit(1);
-        }
-        loadFromDisk();
+
         await syncAvgScore();
         await fetchScoreV2();
         setInterval(async () => {
@@ -602,42 +623,6 @@ export namespace ComputorIdManager {
         resetTargetForAllComputorId();
     }
 
-    async function syncTicksData() {
-        let localTicksData: TickInfo = await Explorer.getTickInfo();
-
-        if (!isNaN(localTicksData?.tickInfo?.epoch)) {
-            ticksData = localTicksData;
-        } else {
-            throw new Error("failed to fetch ticks data");
-        }
-
-        let localTicksData2 = await Explorer.getGeneralTickData();
-
-        if (
-            !Array.isArray(localTicksData2?.ticks) ||
-            !((localTicksData2?.ticks as TickData[]).length > 0)
-        ) {
-            throw new Error("failed to fetch ticks data");
-        }
-
-        ticksData.tickInfo.tick = localTicksData2.ticks[0].tickNumber;
-    }
-
-    // dont need this anymore, but keep it for future use
-    // async function syncEmptyTicks() {
-    //     let localEmptyTicks = await qfetch(
-    //         `https://rpc.qubic.org/v2/epochs/${ticksData.tickInfo.epoch}/empty-ticks?pageSize=100000`
-    //     )
-    //         .then((data) => data.json())
-    //         .then((data) => data.emptyTicks);
-
-    //     if (Array.isArray(localEmptyTicks)) {
-    //         emptyTicks = localEmptyTicks;
-    //     } else {
-    //         throw new Error("failed to fetch empty ticks");
-    //     }
-    // }
-
     export function markSolutionAsWrittenToBC(
         computorId: string,
         miningSeed: string,
@@ -682,7 +667,7 @@ export namespace ComputorIdManager {
         if (isFetchingScore) return;
         isFetchingScore = true;
         try {
-            await syncTicksData();
+            await Explorer.syncTicksData();
         } catch (error: any) {
             LOG(
                 "error",
@@ -693,26 +678,31 @@ export namespace ComputorIdManager {
             return await fetchScoreV2(fromLastTick, isSyncScore);
         }
 
-        if (currentEpoch !== ticksData.tickInfo.epoch && currentEpoch !== 0) {
+        if (
+            Explorer.currentEpoch !== Explorer.ticksData.tickInfo.epoch &&
+            Explorer.currentEpoch !== 0
+        ) {
             //new epoch
-            LOG("sys", `new epoch ${ticksData.tickInfo.epoch}`);
-            WorkerManager.calculateAndInsertRewardPayments(currentEpoch);
-            WorkerManager.saveToDisk(currentEpoch, false);
+            LOG("sys", `new epoch ${Explorer.ticksData.tickInfo.epoch}`);
+            PaymentManager.calculateAndInsertRewardPayments(
+                Explorer.currentEpoch
+            );
+            WorkerManager.saveToDisk(Explorer.currentEpoch, false);
             WorkerManager.clearSolutionsForAllWallets();
-            ComputorIdManager.saveToDisk(currentEpoch, false);
-            SolutionManager.saveToDisk(currentEpoch);
+            ComputorIdManager.saveToDisk(Explorer.currentEpoch, false);
+            SolutionManager.saveToDisk(Explorer.currentEpoch);
             SolutionManager.clearAllQueue();
             ClusterSocketManager.resetSolutionsVerifiedForAll();
             await resetComputorData();
         }
 
-        currentEpoch = ticksData.tickInfo.epoch;
+        Explorer.currentEpoch = Explorer.ticksData.tickInfo.epoch;
 
         if (fromLastTick) {
-            //scan throught all ticks from last sync solutions to current tick
+            //scan throught all ticks from last to sync solutions to current tick
             for (
                 let tick = lastTick + 1;
-                tick <= ticksData.tickInfo.tick;
+                tick <= Explorer.ticksData.tickInfo.tick;
                 tick++
             ) {
                 let solutionsData = await Explorer.getSolutionsDataInTick(tick);
@@ -740,8 +730,8 @@ export namespace ComputorIdManager {
                 try {
                     let data = await Explorer.getTransactionsOfAId(
                         computorId,
-                        ticksData.tickInfo.initialTick,
-                        ticksData.tickInfo.tick
+                        Explorer.ticksData.tickInfo.initialTick,
+                        Explorer.ticksData.tickInfo.tick
                     );
                     let transactions = (await data.json()).transactions as {
                         transactions: {
@@ -806,8 +796,8 @@ export namespace ComputorIdManager {
             }
         }
 
-        if (ticksData.tickInfo.tick > lastTick)
-            lastTick = ticksData.tickInfo.tick;
+        if (Explorer.ticksData.tickInfo.tick > lastTick)
+            lastTick = Explorer.ticksData.tickInfo.tick;
 
         if (fromLastTick) {
             if (isSyncScore) await syncScoreFromQli();

@@ -2,6 +2,7 @@ import { DATA_PATH } from "../consts/path";
 import { ClusterData, ClusterSocket } from "../types/type";
 import fs from "fs";
 import LOG from "../utils/logger";
+import Platform from "../platform/platform";
 export namespace ClusterSocketManager {
     let socketMap: {
         [key: string]: ClusterData;
@@ -82,10 +83,13 @@ export namespace ClusterSocketManager {
         }
     }
 
-    export function saveToDisk() {
-        try {
-            if (!isDiskLoaded) return;
+    export async function saveData() {
+        if (!isDiskLoaded) return;
+        await saveToDisk();
+    }
 
+    export async function saveToDisk() {
+        try {
             fs.writeFileSync(
                 `${DATA_PATH}/cluster-sockets.json`,
                 JSON.stringify(socketMap)
@@ -95,23 +99,30 @@ export namespace ClusterSocketManager {
         }
     }
 
-    export function loadFromDisk() {
+    export async function loadData() {
+        await loadFromDisk();
+        isDiskLoaded = true;
+    }
+
+    export async function loadFromDisk() {
         try {
             let socketMapJson = JSON.parse(
                 fs.readFileSync(`${DATA_PATH}/cluster-sockets.json`, "utf-8")
             );
             socketMap = socketMapJson;
             markAllDisconnected();
-            isDiskLoaded = true;
         } catch (error: any) {
             if (error.message.includes("no such file or directory")) {
-                LOG("sys", `cluster-sockets.json not found, creating new one`);
-                isDiskLoaded = true;
+                LOG(
+                    "sys",
+                    `cluster-sockets.json not found, will create new one`
+                );
             } else {
                 LOG(
                     "error",
                     "ClusterSocketManager.loadFromDisk: " + error.message
                 );
+                await Platform.exit(1);
             }
         }
     }

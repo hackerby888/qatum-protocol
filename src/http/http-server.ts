@@ -16,6 +16,7 @@ import {
 import ApiData from "../utils/qli-apis/global-data";
 import { ClusterSocketManager } from "../verification-cluster/cluster-socket-manager";
 import jwt from "jsonwebtoken";
+import Explorer from "../utils/explorer";
 
 namespace HttpServer {
     function verifyTokenMiddleware(req: Request, res: any, next: any) {
@@ -167,7 +168,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/mining-config", verifyTokenMiddleware, (req, res) => {
+        app.post("/mining-config", verifyTokenMiddleware, async (req, res) => {
             try {
                 let miningConfig: MiningConfig = req.body as any;
                 if (!miningConfig) {
@@ -177,6 +178,7 @@ namespace HttpServer {
                     return;
                 }
                 ComputorIdManager.setMiningConfig(miningConfig);
+                await ComputorIdManager.saveToDb();
                 res.status(200).send({
                     isOk: true,
                 });
@@ -363,9 +365,22 @@ namespace HttpServer {
             }
         );
 
-        app.get("/solutions", verifyTokenMiddleware, (req, res) => {
+        app.get("/solutions", verifyTokenMiddleware, async (req, res) => {
             try {
-                res.send(SolutionManager.toJson());
+                let epoch = Number(req.query.epoch);
+                if (
+                    isNaN(epoch) ||
+                    epoch === Explorer.ticksData.tickInfo.epoch
+                ) {
+                    res.send({
+                        ...SolutionManager.toJson(),
+                        solutionsToSubmitQueue:
+                            NodeManager.solutionsToSubmitQueue,
+                    });
+                } else {
+                    //query from db
+                    res.send(await QatumDb.getTotalSolutions(epoch));
+                }
             } catch (e: any) {
                 res.status(500).send({
                     error: e.message,
@@ -378,7 +393,7 @@ namespace HttpServer {
                 ...WorkerManager.getGlobalStats(),
                 isShareModeEpoch:
                     NodeManager.difficulty.net !== NodeManager.difficulty.pool,
-                epoch: ComputorIdManager.ticksData.tickInfo.epoch,
+                epoch: Explorer.ticksData.tickInfo.epoch,
                 estimatedIts: ApiData.estimatedIts,
                 solutionsPerHour: ApiData.solutionsPerHour,
                 solutionsPerHourEpoch: ApiData.solutionsPerHourEpoch,
@@ -399,7 +414,7 @@ namespace HttpServer {
             }
         });
 
-        app.post("/difficulty", verifyTokenMiddleware, (req, res) => {
+        app.post("/difficulty", verifyTokenMiddleware, async (req, res) => {
             try {
                 let difficulty = req.body.difficulty as {
                     pool?: number;
@@ -414,7 +429,7 @@ namespace HttpServer {
                 }
 
                 NodeManager.setDifficulty(difficulty);
-
+                await NodeManager.saveToDb();
                 res.status(200).send({
                     isOk: true,
                 });
