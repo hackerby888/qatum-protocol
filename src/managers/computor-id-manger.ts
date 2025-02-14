@@ -23,6 +23,7 @@ import { ClusterSocketManager } from "../verification-cluster/cluster-socket-man
 import Explorer from "../utils/explorer";
 import PaymentManager from "./payment-manager";
 import QatumDb from "../database/db";
+import { wait } from "../utils/wait";
 
 export namespace ComputorIdManager {
     let miningConfig: MiningConfig = {
