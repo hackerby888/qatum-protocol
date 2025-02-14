@@ -688,6 +688,7 @@ export namespace ComputorIdManager {
                 "error",
                 `ComputorIdManager.fetchScoreV2: ${error.message}, skip sync score`
             );
+            await wait(ONE_SECOND);
             isFetchingScore = false;
             return await fetchScoreV2(fromLastTick, isSyncScore);
         }
