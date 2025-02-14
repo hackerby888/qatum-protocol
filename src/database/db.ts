@@ -17,11 +17,11 @@ namespace QatumDb {
         LOG(
             "sys",
             `connecting to database ${
-                process.env.MONGO_DB || "mongodb://localhost:27017"
+                process.env.MONGODB || "mongodb://localhost:27017"
             }`
         );
         let dbClient = new MongoClient(
-            process.env.MONGO_DB || "mongodb://localhost:27017"
+            process.env.MONGODB || "mongodb://localhost:27017"
         );
         await dbClient.connect();
         QatumDb.setDb(dbClient.db("qatum") as Db);
