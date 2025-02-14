@@ -30,12 +30,12 @@ async function main() {
     createDataPath();
     let mode = options.mode || process.env.MODE;
     if (mode === "main") {
-        if (process.env.MONGODB_URI) {
+        if (process.env.MONGODB) {
             await QatumDb.connectDB();
         } else {
             LOG(
                 "warning",
-                "MONGODB_URI is not defined, skipping database connection (the pool still working)"
+                "MONGODB is not defined, skipping database connection (the pool still working)"
             );
         }
         await Explorer.init();
