@@ -13,9 +13,13 @@ function generateRandomString(length: number) {
     return result;
 }
 
-let socket = net.connect(Number(process.env.QATUM_PORT), "localhost", () => {
-    console.log("Connected to stratum server");
-});
+let socket = net.connect(
+    Number(process.env.QATUM_PORT),
+    "server.qatum.org",
+    () => {
+        console.log("Connected to stratum server");
+    }
+);
 socket.write(
     JSON.stringify({
         id: StratumEvents.eventsId.SUBSCRIBE,

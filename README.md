@@ -1,66 +1,23 @@
 # Qatum &middot; [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
-Qatum is the stratum-like protocol for qubic.
+Qatum is the stratum-like mining protocol for qubic.
 
 > The backend implementation for the Qatum protocol are included in this repository.
 
 > The client implementation can be found here https://github.com/hackerby888/Qiner.
 
-## Requirement
+#### Documentation
 
--   Nodejs
--   Linux : GCC or Clang | Windows: MSVC Compiler
--   Python >= 3.12
--   AVX2 or AVX512
+The documentation is divided into several sections:
 
-## Run
+-   [How to interact with Qatum protocol](./docs/how-to-interact-with-qatum.md)
+-   [How to host your own Qatum server](./docs/how-to-host-your-own-qatum-server.md)
 
--   npm install
--   npm run configure
--   npm run build
--   npm start
-
-## Environment Variable
-
-Create `.env` file on project's root folder and edit following variables
-
-```
-# database (optional)
-MONGODB_URI = "mongodb://localhost:27017/"
-
-# admin login
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin"
-
-# main or verify
-MODE = "main"
-MAX_VERIFICATION_THREADS = 1
-HTTP_PORT = 3000
-QATUM_PORT = 3001
-CLUSTER_PORT = 3002
-NODE_IPS = "0.0.0.0,127.0.0.1"
-SECRET_SEED = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
-# POOL = NET --> Solo Mode
-# POOL < NET --> Share Mode
-# NET_DIFFICULTY need to be same as current qubic solution threshold
-INITIAL_POOL_DIFFICULTY = 80
-INITIAL_NET_DIFFICULTY = 80
-
-# only set when MODE = "verify"
-CLUSTER_MAIN_SERVER = "host:port"
-```
-
-## Documentation
+#### Qatum Flow
 
 ![alt text](https://imgur.com/bT8K9Es.png)
 
-This software can be ran as two modes
-
--   **main**: Your server will be a pool that miner can connect and mining
--   **verify**: Your server will help the main server speed up verification process, miners can't connect to this server and mining
-
-*   **Qatum Events Id**
+#### Qatum Events Id
 
 ```ts
 {
@@ -73,61 +30,57 @@ This software can be ran as two modes
 };
 ```
 
--   **Client Packet**
+#### Client Packet
 
 ```ts
-export namespace Client {
-    export interface SubscribePacket {
+SubscribePacket {
         id: number;
         wallet: string;
         worker: string;
     }
 
-    export interface SubmitPacket {
+SubmitPacket {
         id: number;
         nonce: string;
         seed: string;
         computorId: string;
     }
 
-    export interface ReportHashratePacket {
+ReportHashratePacket {
         id: number;
         computorId: string;
         hashrate: number;
     }
-}
 ```
 
--   **Server Packet**
+#### Server Packet
 
 ```ts
-export namespace Server {
-    export interface SubscribePacket {
+SubscribePacket {
         id: number;
         result: boolean;
         error: string | null;
     }
 
-    export interface NewComputorIdPacket {
+NewComputorIdPacket {
         id: number;
         computorId: string;
     }
 
-    export interface NewSeedPacket {
+NewSeedPacket {
         id: number;
         seed: string;
         isEmpty: boolean;
     }
 
-    export interface SubmitPacket {
+SubmitPacket {
         id: number;
         result: boolean;
         error: string | null;
     }
 
-    export interface NewDifficultyPacket {
+NewDifficultyPacket {
         id: number;
         difficulty: number;
     }
-}
 ```
