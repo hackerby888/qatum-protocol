@@ -10,8 +10,8 @@ Qatum is the stratum-like mining protocol for qubic.
 
 The documentation is divided into several sections:
 
--   [How to interact with Qatum protocol](./docs)
--   [How to host your own Qatum server](https://react.dev/learn)
+-   [How to interact with Qatum protocol](./docs/how-to-interact-with-qatum.md)
+-   [How to host your own Qatum server](./docs/how-to-host-your-own-qatum-server.md)
 
 #### Qatum Flow
 
