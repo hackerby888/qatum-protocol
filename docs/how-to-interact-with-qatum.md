@@ -5,7 +5,8 @@
 Open TCP socket to Qatum server
 
 > Public Qatum server is : server.qatum.org:7777
-> Rate limit for public server is : 10 packets / 1 second
+
+> Rate limit for public server is : 10 submit solution packets / 1 ip
 
 ### Step 2
 
@@ -19,7 +20,7 @@ Send a `SubscribePacket` packet
 }
 ```
 
-Server will response with `SubscribePacket  (Response)`
+Server will response with `SubscribePacket (Response)`
 
 ```ts
 {
