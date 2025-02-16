@@ -28,30 +28,15 @@ namespace QatumServer {
             let buffer: string = "";
 
             const handler = async (data: string) => {
-                try {
-                    await rateLimiter
-                        .consume(
-                            (socket.remoteAddress as string) || "unknown",
-                            1
-                        )
-                        .then((rateLimiterRes) => {
-                            if (rateLimiterRes.remainingPoints <= 0) {
-                                throw new Error("Rate limit exceeded");
-                            }
-                        });
-                } catch (e: any) {
-                    LOG(
-                        "error",
-                        "QatumServer.createServer.handler: " +
-                            `rate limit exceeded for ${socket.remoteAddress}`
-                    );
-                    return;
-                }
                 let jsonObj = JSON.parse(data);
                 switch (jsonObj.id) {
                     case QatumEvents.eventsId.SUBSCRIBE:
                         {
                             try {
+                                if (qatumSocket.isConnected) {
+                                    throw new Error("already subscribed");
+                                }
+
                                 let jsonObjTyped =
                                     jsonObj as QatumInterface.Client.SubscribePacket;
 
@@ -112,6 +97,29 @@ namespace QatumServer {
                             let jsonObjTyped =
                                 jsonObj as QatumInterface.Client.SubmitPacket;
                             try {
+                                await rateLimiter
+                                    .consume(
+                                        (socket.remoteAddress as string) ||
+                                            "unknown",
+                                        1
+                                    )
+                                    .then((rateLimiterRes) => {
+                                        if (
+                                            rateLimiterRes.remainingPoints <= 0
+                                        ) {
+                                            throw new Error("");
+                                        }
+                                    })
+                                    .catch((e) => {
+                                        throw new Error(
+                                            `rate limit exceeded ip ${socket.remoteAddress}`
+                                        );
+                                    });
+
+                                if (!qatumSocket.isConnected) {
+                                    throw new Error("worker not subscribed");
+                                }
+
                                 if (
                                     jsonObjTyped.computorId.length !== 60 ||
                                     jsonObjTyped.nonce.length !== 64 ||
@@ -151,32 +159,6 @@ namespace QatumServer {
                                     throw new Error("duplicate solution");
                                 }
 
-                                // let isWriteForComputorIdOk =
-                                //     ComputorIdManager.writeSolution(
-                                //         jsonObjTyped.computorId,
-                                //         jsonObjTyped.nonce,
-                                //         jsonObjTyped.seed
-                                //     );
-
-                                // if (!isWriteForComputorIdOk) {
-                                //     throw new Error("duplicate solution");
-                                // }
-
-                                // let md5Hash = await SolutionManager.push(
-                                //     jsonObjTyped.seed,
-                                //     jsonObjTyped.nonce,
-                                //     jsonObjTyped.computorId
-                                // );
-
-                                // if (!md5Hash) {
-                                //     throw new Error("duplicate solution");
-                                // }
-
-                                // WorkerManager.pushSolution(
-                                //     qatumSocket.wallet,
-                                //     qatumSocket.randomUUID,
-                                //     md5Hash
-                                // );
                                 qatumSocket.write(
                                     QatumEvents.getSubmitResultPacket(true)
                                 );
@@ -193,6 +175,10 @@ namespace QatumServer {
                     case QatumEvents.eventsId.REPORT_HASHRATE:
                         {
                             try {
+                                if (!qatumSocket.isConnected) {
+                                    throw new Error("worker not subscribed");
+                                }
+
                                 let jsonObjTyped =
                                     jsonObj as QatumInterface.Client.ReportHashratePacket;
 
@@ -207,7 +193,13 @@ namespace QatumServer {
                                     qatumSocket.randomUUID,
                                     jsonObjTyped.hashrate
                                 );
-                            } catch (e: any) {}
+                            } catch (e: any) {
+                                LOG(
+                                    "error",
+                                    `QatumServer.createServer.handler.REPORT_HASHRATE: ` +
+                                        e.message
+                                );
+                            }
                         }
                         break;
                     default:
