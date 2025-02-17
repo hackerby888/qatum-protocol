@@ -41,6 +41,8 @@ export namespace ComputorIdManager {
 
     let isDiskLoaded = false;
 
+    export let lastFetchScoreTime = Date.now();
+
     export function toApiFormat() {
         let apiData: ComputorIdDataApi[] = [];
         for (let computorId in computorIdMap) {
@@ -807,6 +809,7 @@ export namespace ComputorIdManager {
         }
 
         isFetchingScore = false;
+        lastFetchScoreTime = Date.now();
     }
 
     export async function syncScoreFromQli() {

@@ -54,6 +54,13 @@ namespace HttpServer {
             res.send("Hello Qubic!");
         });
 
+        app.get("/status", (req, res) => {
+            res.send({
+                lastSuccessSyncSeed: NodeManager.lastSuccessSyncSeed.real,
+                lastFetchScoreTime: ComputorIdManager.lastFetchScoreTime,
+            });
+        });
+
         app.post("/login", (req, res) => {
             try {
                 let user = req.body.user as string;

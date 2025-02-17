@@ -210,4 +210,9 @@ export interface TotalSolutionsStats {
     totalSolutionVerified: number;
 }
 
+export interface SystemStatusApi {
+    lastSuccessSyncSeed: number;
+    lastFetchScoreTime: number;
+}
+
 export type PaymentDbState = "all" | "unpaid" | "paid";

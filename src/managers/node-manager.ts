@@ -63,7 +63,10 @@ namespace NodeManager {
     let nodeIpsFailedMap: { [key: string]: number } = {};
     let gthreads = 0;
 
-    let lastSuccessSyncSeed = Date.now();
+    export let lastSuccessSyncSeed = {
+        real: Date.now(),
+        fake: Date.now(),
+    };
 
     let isDiskLoaded = false;
 
@@ -486,7 +489,8 @@ namespace NodeManager {
                             }
                             currentMiningSeed = newSeed;
                             canBreak = true;
-                            lastSuccessSyncSeed = Date.now();
+                            lastSuccessSyncSeed.fake = Date.now();
+                            lastSuccessSyncSeed.real = Date.now();
                             nodeIpsFailedMap[candicateIp] = 0;
                             resolve(undefined);
                         }
@@ -504,9 +508,9 @@ namespace NodeManager {
         let failedCount = 0;
         setInterval(async () => {
             try {
-                if (Date.now() - lastSuccessSyncSeed > ONE_MINUTE * 1) {
+                if (Date.now() - lastSuccessSyncSeed.fake > ONE_MINUTE * 1) {
                     LOG("warning", "failed to get new seed for 1 minute");
-                    lastSuccessSyncSeed = Date.now();
+                    lastSuccessSyncSeed.fake = Date.now();
                 }
                 if (isProcessing) return;
 
