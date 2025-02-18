@@ -213,6 +213,8 @@ export interface TotalSolutionsStats {
 export interface SystemStatusApi {
     lastSuccessSyncSeed: number;
     lastFetchScoreTime: number;
+    lastHighestTickFromCurrentNodes: number;
+    lastHighestTickFromExplorer: number;
 }
 
 export type PaymentDbState = "all" | "unpaid" | "paid";

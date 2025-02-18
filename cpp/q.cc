@@ -163,21 +163,24 @@ public:
             memcpy(seed, infoz.randomMiningSeed, 32);
             byteToHex(seed, hex, 32);
             seedHex = isOk ? string((const char *)hex, 64) : "-1";
+            tick = isOk ? infoz.tick : 0;
         }
         else
         {
             seedHex = "-1";
+            tick = 0;
         }
     }
 
     void OnOK() override
     {
         HandleScope scope(Env());
-        Callback().Call({String::New(Env(), seedHex)});
+        Callback().Call({String::New(Env(), seedHex), Number::New(Env(), tick)});
     }
 
 private:
     std::string seedHex;
+    unsigned int tick;
     std::string ip;
 };
 

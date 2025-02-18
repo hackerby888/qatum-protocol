@@ -128,7 +128,9 @@ namespace Explorer {
             throw new Error("failed to fetch ticks data");
         }
 
-        let localTicksData2 = await Explorer.getGeneralTickData();
+        let localTicksData2 = await Explorer.getGeneralTickData(
+            ticksData.tickInfo.epoch
+        );
 
         if (
             !Array.isArray(localTicksData2?.ticks) ||
@@ -214,9 +216,9 @@ namespace Explorer {
         );
     }
 
-    export async function getGeneralTickData() {
+    export async function getGeneralTickData(epoch: number) {
         return (await qfetch(
-            `https://rpc.qubic.org/v2/epochs/147/ticks?desc=true&pageSize=1&page=1`
+            `https://rpc.qubic.org/v2/epochs/${epoch}/ticks?desc=true&pageSize=1&page=1`
         ).then((data) => data.json())) as {
             ticks: TickData[];
         };

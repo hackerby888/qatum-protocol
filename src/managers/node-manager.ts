@@ -15,13 +15,14 @@ import fs from "fs";
 import os from "os";
 import { DATA_PATH } from "../consts/path";
 import QatumDb from "../database/db";
+import Explorer from "../utils/explorer";
 
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
     initSocket: (ip: string, cb: (isOk: boolean) => void) => boolean;
     getMiningCurrentMiningSeed: (
         ip: string,
-        cb: (miningSeed: string) => void
+        cb: (miningSeed: string, tick: number) => void
     ) => void;
     sendSolution: (
         ip: string,
@@ -62,11 +63,14 @@ namespace NodeManager {
     export let nodeIpsInactive: string[] = [];
     let nodeIpsFailedMap: { [key: string]: number } = {};
     let gthreads = 0;
+    const MAX_TICK_BEHIND = 20;
+    const MAX_FAILED_GET_SEED = 10;
 
     export let lastSuccessSyncSeed = {
         real: Date.now(),
         fake: Date.now(),
     };
+    export let lastHighestTick = 0;
 
     let isDiskLoaded = false;
 
@@ -208,14 +212,28 @@ namespace NodeManager {
         }
     }
 
-    export function checkAndRemoveIpsIfInactive() {
+    export function checkAndRemoveIpsIfInactive(
+        checkTickIp: {
+            ip: string;
+            tick: number;
+        } = { ip: "", tick: 0 }
+    ) {
+        let deletedIps: string[] = [];
         let cloneNodeIps = [...nodeIps];
         for (let i = 0; i < nodeIps.length; i++) {
             let ip = nodeIps[i];
-            if (nodeIpsFailedMap[ip] > 10) {
+            if (
+                nodeIpsFailedMap[ip] > MAX_FAILED_GET_SEED ||
+                (ip === checkTickIp.ip &&
+                    checkTickIp.tick > 0 &&
+                    checkTickIp.tick <
+                        Explorer.ticksData.tickInfo.tick - MAX_TICK_BEHIND)
+            ) {
+                deletedIps.push(ip);
                 LOG("warning", "node ip inactive: " + ip);
                 pushNodeIp(ip, "inactive");
                 cloneNodeIps = cloneNodeIps.filter((item) => item !== ip);
+                nodeIpsFailedMap[ip] = MAX_FAILED_GET_SEED - 3;
             }
         }
 
@@ -225,6 +243,8 @@ namespace NodeManager {
             nodeIps = [...nodeIpsInactive];
             nodeIpsInactive = [];
         }
+
+        return deletedIps.includes(checkTickIp.ip);
     }
 
     export function setDifficulty(newDiff: { pool?: number; net?: number }) {
@@ -474,10 +494,16 @@ namespace NodeManager {
                 await new Promise((resolve, reject) => {
                     addon.getMiningCurrentMiningSeed(
                         candicateIp,
-                        async (newSeed: string) => {
-                            if (newSeed === "-1") {
+                        async (newSeed: string, tick: number) => {
+                            if (tick > lastHighestTick) lastHighestTick = tick;
+                            if (
+                                checkAndRemoveIpsIfInactive({
+                                    ip: candicateIp,
+                                    tick,
+                                }) ||
+                                newSeed === "-1"
+                            ) {
                                 nodeIpsFailedMap[candicateIp]++;
-                                checkAndRemoveIpsIfInactive();
                                 await new Promise((resolve) => {
                                     setTimeout(() => {
                                         resolve(undefined);

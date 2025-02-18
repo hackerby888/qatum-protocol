@@ -58,6 +58,8 @@ namespace HttpServer {
             res.send({
                 lastSuccessSyncSeed: NodeManager.lastSuccessSyncSeed.real,
                 lastFetchScoreTime: ComputorIdManager.lastFetchScoreTime,
+                lastHighestTickFromCurrentNodes: NodeManager.lastHighestTick,
+                lastHighestTickFromExplorer: Explorer.ticksData.tickInfo.tick,
             });
         });
 
