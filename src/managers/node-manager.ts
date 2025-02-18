@@ -103,6 +103,21 @@ namespace NodeManager {
                 upsert: true,
             }
         );
+
+        await QatumDb.getPoolConfigCollection()?.updateOne(
+            {
+                type: "nodeips",
+            },
+            {
+                $set: {
+                    nodeIps,
+                    nodeIpsInactive,
+                },
+            },
+            {
+                upsert: true,
+            }
+        );
     }
 
     export async function saveToDisk() {
@@ -115,6 +130,14 @@ namespace NodeManager {
             fs.writeFileSync(
                 `${DATA_PATH}/solutionsToSubmitQueue.json`,
                 JSON.stringify(solutionsToSubmitQueue)
+            );
+
+            fs.writeFileSync(
+                `${DATA_PATH}/nodeips.json`,
+                JSON.stringify({
+                    nodeIps,
+                    nodeIpsInactive,
+                })
             );
         } catch (error) {
             LOG(
@@ -150,6 +173,23 @@ namespace NodeManager {
                 ...dbDifficulty,
             };
         }
+
+        let dbNodeIps = (await QatumDb.getPoolConfigCollection()?.findOne(
+            {
+                type: "nodeips",
+            },
+            {
+                projection: {
+                    _id: 0,
+                    type: 0,
+                },
+            }
+        )) as any;
+
+        if (dbNodeIps) {
+            nodeIps = dbNodeIps.nodeIps;
+            nodeIpsInactive = dbNodeIps.nodeIpsInactive;
+        }
     }
 
     export async function loadFromDisk() {
@@ -183,6 +223,22 @@ namespace NodeManager {
                     "sys",
                     `solutionsToSubmitQueue.json not found, will create new one`
                 );
+            } else {
+                LOG("error", "NodeManager.loadFromDisk: " + error.message);
+                await Platform.exit(1);
+            }
+        }
+
+        try {
+            let diskNodeIps = JSON.parse(
+                fs.readFileSync(`${DATA_PATH}/nodeips.json`, "utf-8")
+            );
+
+            nodeIps = diskNodeIps.nodeIps;
+            nodeIpsInactive = diskNodeIps.nodeIpsInactive;
+        } catch (error: any) {
+            if (error.message.includes("no such file or directory")) {
+                LOG("sys", `nodeips.json not found, will create new one`);
             } else {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
                 await Platform.exit(1);
@@ -439,12 +495,14 @@ namespace NodeManager {
 
     export async function init(ips: string, secretSeed: string) {
         LOG("node", "init node manager");
-        nodeIps = ips.split(",").map((ip) => ip.trim());
-        for (let i = 0; i < nodeIps.length; i++) {
-            LOG("node", "using node ip: " + nodeIps[i]);
-            nodeIpsFailedMap[nodeIps[i]] = 0;
+        if (nodeIps.length === 0) {
+            nodeIps = ips.split(",").map((ip) => ip.trim());
         }
 
+        for (let i = 0; i < nodeIps.length; i++) {
+            nodeIpsFailedMap[nodeIps[i]] = 0;
+            LOG("node", "using node ip: " + nodeIps[i]);
+        }
         currentSecretSeed = secretSeed;
         watchAndSubmitSolution();
         initLogger();
