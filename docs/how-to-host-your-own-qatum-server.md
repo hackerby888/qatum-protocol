@@ -26,6 +26,8 @@ Example for `main` mode
 ```
 # database (optional)
 MONGODB = "mongodb://localhost:27017/" # payment system won't work if database is not used
+# true or false | if you dont use rpc, all solutions will be considered as not written
+USE_RPC_API = "true"
 
 # admin credentials (go to /login)
 ADMIN_USERNAME = "admin"
