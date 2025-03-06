@@ -27,9 +27,8 @@ namespace Platform {
     }
 
     export async function loadData(epoch?: number) {
-        let candicateEpoch = epoch || Explorer?.ticksData?.tickInfo?.epoch;
-
         await Explorer.loadData();
+        let candicateEpoch = epoch || Explorer?.ticksData?.tickInfo?.epoch;
         await NodeManager.loadData();
         await ComputorIdManager.loadData(candicateEpoch);
         await WorkerManager.loadData(candicateEpoch);

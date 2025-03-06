@@ -35,11 +35,10 @@ export namespace ComputorIdManager {
     let computorIdMap: ComputorIdDataMap = {};
 
     let lastTick = 0;
-
     let isFetchingScore = false;
     let fetchingTimes = 1;
-
     let isDiskLoaded = false;
+    let isUsingRpcApi = process.env.USE_RPC_API === "true";
 
     export let lastFetchScoreTime = Date.now();
 
@@ -657,6 +656,11 @@ export namespace ComputorIdManager {
         isSyncScore: boolean = false,
         waitTillAvailable: boolean = false
     ) {
+        if (!isUsingRpcApi) {
+            await SolutionManager.processPendingToGetProcessQueue();
+            await syncScoreFromQli();
+            return;
+        }
         if (waitTillAvailable && isFetchingScore) {
             await new Promise((resolve) => {
                 let interval = setInterval(() => {

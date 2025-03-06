@@ -19,8 +19,9 @@ import Platform from "../platform/platform";
 namespace Explorer {
     export let ticksData: TickInfo;
     export let currentEpoch: number = 0;
+    let initFailedTimes = 0;
     let isDiskLoaded = false;
-
+    let isUsingRpcApi = process.env.USE_RPC_API === "true";
     export async function loadData() {
         await loadFromDisk();
         await loadFromDb();
@@ -109,12 +110,17 @@ namespace Explorer {
 
     export async function init() {
         try {
+            if (!isUsingRpcApi) return;
             await Explorer.syncTicksData();
         } catch (error: any) {
+            if (initFailedTimes++ > 10) {
+                return;
+            }
             LOG(
                 "error",
                 "Explorer.init: failed to connect to qubic rpc server"
             );
+            await wait(FIVE_SECONDS);
             return await init();
         }
     }
