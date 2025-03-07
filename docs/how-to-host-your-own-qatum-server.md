@@ -28,6 +28,8 @@ Example for `main` mode
 MONGODB = "mongodb://localhost:27017/" # payment system won't work if database is not used
 # true or false | if you dont use rpc, all solutions will be considered as not written
 USE_RPC_API = "true"
+# if you dont use reliable nodes api, the system will use ips in NODE_IPS
+RELIABLE_NODES_API = "https://your-api-here/status" # public api is: http://server.qatum.org:8080/status
 
 # admin credentials (go to /login)
 ADMIN_USERNAME = "admin"
