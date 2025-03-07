@@ -66,6 +66,8 @@ namespace NodeManager {
     const MAX_TICK_BEHIND = 20;
     const MAX_FAILED_GET_SEED = 10;
 
+    let RELIABLE_NODES_API = "";
+
     export let lastSuccessSyncSeed = {
         real: Date.now(),
         fake: Date.now(),
@@ -329,9 +331,9 @@ namespace NodeManager {
             qutilDataPayments
                 .map((payment) => `${payment.id},${payment.amount}`)
                 .join("\n") + "\n";
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             addon.pay(
-                getRandomIpFromList(),
+                await getRandomIpFromList(),
                 paymentCsvString,
                 currentSecretSeed,
                 (tick, txhash) => {
@@ -489,12 +491,33 @@ namespace NodeManager {
         initVerifyThread(gthreads);
     }
 
-    export function getRandomIpFromList() {
+    export async function getRandomIpFromList() {
+        if (RELIABLE_NODES_API) {
+            try {
+                let data = await fetch(RELIABLE_NODES_API);
+                let json: {
+                    most_reliable_node: {
+                        address: string;
+                    };
+                } = await data.json();
+
+                return json.most_reliable_node.address;
+            } catch (error: any) {
+                LOG(
+                    "error",
+                    "NodeManager.getRandomIpFromList(failed to get data from reliable api): " +
+                        error.message
+                );
+                return nodeIps[Math.floor(Math.random() * nodeIps.length)];
+            }
+        }
         return nodeIps[Math.floor(Math.random() * nodeIps.length)];
     }
 
     export async function init(ips: string, secretSeed: string) {
         LOG("node", "init node manager");
+        RELIABLE_NODES_API = process.env.RELIABLE_NODES_API || "";
+        if(!RELIABLE_NODES_API) LOG("warning", "RELIABLE_NODES_API is not defined, will use node ip from local NODE_IPS");
         if (nodeIps.length === 0) {
             nodeIps = ips.split(",").map((ip) => ip.trim());
         }
@@ -517,8 +540,8 @@ namespace NodeManager {
         seedHex: string,
         computorId: string
     ): Promise<boolean> {
-        return new Promise((resolve, reject) => {
-            let ip = getRandomIpFromList();
+        return new Promise(async (resolve, reject) => {
+            let ip = await getRandomIpFromList();
             if (!ip) {
                 return reject(new Error("ip to submit not found"));
             }
@@ -548,7 +571,7 @@ namespace NodeManager {
         while (true) {
             try {
                 if (canBreak) break;
-                let candicateIp = getRandomIpFromList();
+                let candicateIp = await getRandomIpFromList();
                 await new Promise((resolve, reject) => {
                     addon.getMiningCurrentMiningSeed(
                         candicateIp,
@@ -561,7 +584,8 @@ namespace NodeManager {
                                 }) ||
                                 newSeed === "-1"
                             ) {
-                                nodeIpsFailedMap[candicateIp]++;
+                                if (candicateIp in nodeIpsFailedMap)
+                                    nodeIpsFailedMap[candicateIp]++;
                                 await new Promise((resolve) => {
                                     setTimeout(() => {
                                         resolve(undefined);
