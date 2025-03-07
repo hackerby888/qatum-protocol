@@ -2,6 +2,7 @@
 
 > For linux you should run these commands first:
 > `sudo apt-get update` > `sudo apt-get install build-essential`
+> 
 > How to host your own RELIABLE_NODES_API [https://github.com/qubic/go-qubic-nodes](https://github.com/qubic/go-qubic-nodes)
 
 ##### Requirement
