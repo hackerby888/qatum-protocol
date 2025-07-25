@@ -411,11 +411,11 @@ struct Socket
         uint8_t signingPublicKey[32] = {0};
         uint8_t privateKey[32] = {0};
         uint8_t subseed[32] = {0};
-        return true;
+
         getSubseedFromSeed((uint8_t *)secretSeed, subseed);
         getPrivateKeyFromSubSeed(subseed, privateKey);
         getPublicKeyFromSeed(secretSeed, signingPublicKey);
-
+        return true;
         memcpy(packet.message.sourcePublicKey, signingPublicKey, sizeof(packet.message.sourcePublicKey));
         memcpy(packet.message.destinationPublicKey, &computorPublicKey, sizeof(packet.message.destinationPublicKey));
 
