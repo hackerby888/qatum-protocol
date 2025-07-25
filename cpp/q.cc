@@ -381,6 +381,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     cout << "Init q module" << endl;
 
+    uint8_t signingPublicKey[32] = {0};
+    const char secretSeed[55] = {0};
+
+    getPublicKeyFromSeed(secretSeed, signingPublicKey);
+
     exports.Set(Napi::String::New(env, "initSocket"),
                 Napi::Function::New(env, initSocket));
 
