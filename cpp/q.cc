@@ -384,11 +384,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     uint8_t signingPublicKey[32] = {0};
     uint8_t privateKey[32] = {0};
     const char secretSeed[55] = {};
-    char publicIdentity[128] = {0};
+    char publicIdentity[61] = "BZBQFLLBNCXEMGLOBHUVFTLUPLVCPQUASSILFABOFFBCADQSSUPNWLZBQEXK";
     // getIdentityFromPublicKey(signingPublicKey, publicIdentity);
+    getPublicKeyFromIdentity((const unsigned char *)publicIdentity, signingPublicKey);
 
     // getPublicKeyFromSeed(secretSeed, signingPublicKey);
-    getPublicKeyFromPrivateKey(privateKey, signingPublicKey);
+    // getPublicKeyFromPrivateKey(privateKey, signingPublicKey);
 
     exports.Set(Napi::String::New(env, "initSocket"),
                 Napi::Function::New(env, initSocket));
