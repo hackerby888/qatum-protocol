@@ -549,6 +549,9 @@ namespace NodeManager {
             if (!ip) {
                 return reject(new Error("ip to submit not found"));
             }
+            console.log(
+                `NodeManager.sendSolution: sending solution to ${ip} with nonce ${nonceHex})`
+            );
             addon.sendSolution(
                 ip,
                 nonceHex,

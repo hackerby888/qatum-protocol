@@ -53,15 +53,13 @@ socket.on("data", (data) => {
         //             "SIKTFXJDOVODFBCBGPXZKEAMSYWBMUMKQADKGWURBAWRMKPWJLQGNIBFOTIC",
         //     }) + "\n"
         // );
-        for (let i = 0; i < 1; i++) {
+        for (let i = 0; i < 5; i++) {
             socket.write(
                 JSON.stringify({
                     id: StratumEvents.eventsId.SUBMIT,
                     //random nonce 64 char
-                    nonce: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
-                        64
-                    ),
-                    seed: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
+                    nonce: generateRandomString(64),
+                    seed: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b6911528f8e0854c3be833a5f91b354b5160ada86e9528f5e238d66b75d13dfea13".substring(
                         0,
                         64
                     ),
