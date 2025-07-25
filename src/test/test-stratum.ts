@@ -58,10 +58,10 @@ socket.on("data", (data) => {
                 JSON.stringify({
                     id: StratumEvents.eventsId.SUBMIT,
                     //random nonce 64 char
-                    nonce: "831a2bf894e39ce5ccee4e9baa5ec9a7eade1986b9a0d854013ca6feb9998c9b716c692d63707577ab002e87e0876e6bff6c1f79b7edc68ced91e2b27053e7b6".substring(
+                    nonce: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
                         64
                     ),
-                    seed: "831a2bf894e39ce5ccee4e9baa5ec9a7eade1986b9a0d854013ca6feb9998c9b716c692d63707577ab002e87e0876e6bff6c1f79b7edc68ced91e2b27053e7b5".substring(
+                    seed: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
                         0,
                         64
                     ),

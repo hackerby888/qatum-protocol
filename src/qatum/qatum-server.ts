@@ -135,7 +135,8 @@ namespace QatumServer {
                                         NodeManager.getMiningSeed().toLocaleLowerCase() ||
                                     parseInt(jsonObjTyped.seed, 16) === 0
                                 ) {
-                                    throw new Error("invalid seed");
+                                    if (!process.env.QATUM_ACCEPT_ALL_SEED)
+                                        throw new Error("invalid seed");
                                 }
 
                                 if (
