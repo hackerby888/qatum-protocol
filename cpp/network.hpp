@@ -414,7 +414,6 @@ struct Socket
 
         getSubseedFromSeed((uint8_t *)secretSeed, subseed);
         getPrivateKeyFromSubSeed(subseed, privateKey);
-        return true;
         getPublicKeyFromSeed(secretSeed, signingPublicKey);
 
         memcpy(packet.message.sourcePublicKey, signingPublicKey, sizeof(packet.message.sourcePublicKey));
