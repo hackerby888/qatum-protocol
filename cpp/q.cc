@@ -388,6 +388,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     // getIdentityFromPublicKey(signingPublicKey, publicIdentity);
     getPublicKeyFromIdentity((const unsigned char *)publicIdentity, signingPublicKey);
 
+    char publicIdentity2[61] = {0};
+    getIdentityFromPublicKey(signingPublicKey, publicIdentity2);
+    cout << "Public Identity: " << publicIdentity2 << endl;
     // getPublicKeyFromSeed(secretSeed, signingPublicKey);
     // getPublicKeyFromPrivateKey(privateKey, signingPublicKey);
 
