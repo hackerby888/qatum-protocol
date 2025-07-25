@@ -16,6 +16,9 @@ import os from "os";
 import { DATA_PATH } from "../consts/path";
 import QatumDb from "../database/db";
 import Explorer from "../utils/explorer";
+import { QubicHelper } from "@qubic-lib/qubic-ts-library/dist/qubicHelper";
+import crypto from "@qubic-lib/qubic-ts-library";
+import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefinitions";
 
 interface Addon {
     initLogger: (cb: (type: string, msg: string) => void) => void;
@@ -50,8 +53,22 @@ interface Addon {
         secretSeed: string,
         cb: (tick: number, txhash: string) => void
     ) => void;
+    prepareSolutionData: (
+        nonceHex: string,
+        seedHex: string,
+        computorId: string,
+        secretSeed: string,
+        myIndentity: string
+    ) => Buffer;
+    sendSolutionV2: (
+        ip: string,
+        data: Uint8Array,
+        cb: (isOK: boolean) => void
+    ) => boolean;
 }
 let addon: Addon = bindings("q");
+
+const RawSolutionSize = 168; // 168 bytes
 
 namespace NodeManager {
     export let internalAddon = addon;
@@ -65,6 +82,9 @@ namespace NodeManager {
     let gthreads = 0;
     const MAX_TICK_BEHIND = 20;
     const MAX_FAILED_GET_SEED = 10;
+    let myPrivateKey: Uint8Array = new Uint8Array(32).fill(0);
+    let myPublicKey: Uint8Array = new Uint8Array(32).fill(0);
+    let myIndentity: string;
 
     let RELIABLE_NODES_API = "";
 
@@ -536,7 +556,84 @@ namespace NodeManager {
         initVerifyThread(
             Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
         );
+        let helper = new QubicHelper();
+        let idPackage = await helper.createIdPackage(currentSecretSeed);
+        myPrivateKey = idPackage.privateKey;
+        myPublicKey = idPackage.publicKey;
+        myIndentity = idPackage.publicId;
+
+        let rawSolutionData = prepareSolutionData(
+            "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
+                64
+            ),
+            "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
+                0,
+                64
+            ),
+            "SIKTFXJDOVODFBCBGPXZKEAMSYWBMUMKQADKGWURBAWRMKPWJLQGNIBFOTIC"
+        );
+
+        let signedSolution = await signRawSolutionData(rawSolutionData);
+        console.log("signedSolution: ", signedSolution);
+
+        await sendSolutionV2(signedSolution);
+
         await initToNodeSocket();
+    }
+
+    export async function signRawSolutionData(
+        data: Uint8Array
+    ): Promise<Uint8Array> {
+        if (data.length !== RawSolutionSize) {
+            throw new Error(
+                `Invalid data size: ${data.length}, expected: ${RawSolutionSize}`
+            );
+        }
+        // check if private key or public key is all zero
+        if (
+            myPrivateKey.length !== 32 ||
+            myPublicKey.length !== 32 ||
+            myPrivateKey.every((byte) => byte === 0) ||
+            myPublicKey.every((byte) => byte === 0)
+        ) {
+            throw new Error("Invalid private or public key");
+        }
+
+        let { schnorrq, K12 } = await crypto.crypto;
+        const digest = new Uint8Array(QubicDefinitions.DIGEST_LENGTH).fill(0);
+        console.log("digest: ", digest);
+
+        // skip request response header
+        let dataToSign = data.slice(8);
+
+        K12(dataToSign, digest, QubicDefinitions.DIGEST_LENGTH);
+        const signature = schnorrq.sign(myPrivateKey, myPublicKey, digest);
+        console.log("signature: ", signature);
+        console.log("digest", digest);
+
+        // append signature to data
+        const signedData = new Uint8Array(RawSolutionSize + signature.length);
+        signedData.set(data, 0);
+        signedData.set(signature, RawSolutionSize);
+        console.log("signedData: ", signedData);
+        // return signed data
+        return signedData;
+    }
+
+    export function prepareSolutionData(
+        nonceHex: string,
+        seedHex: string,
+        computorId: string
+    ): Buffer {
+        let buff = addon.prepareSolutionData(
+            nonceHex,
+            seedHex,
+            computorId,
+            currentSecretSeed,
+            myIndentity
+        );
+        console.log("prepareSolutionData: ", buff);
+        return buff;
     }
 
     export async function sendSolution(
@@ -563,6 +660,22 @@ namespace NodeManager {
                     }
                 }
             );
+        });
+    }
+
+    export async function sendSolutionV2(data: Uint8Array): Promise<boolean> {
+        return new Promise(async (resolve, reject) => {
+            let ip = await getRandomIpFromList();
+            if (!ip) {
+                return reject(new Error("ip to submit not found"));
+            }
+            addon.sendSolutionV2(ip, data, (isOK: boolean) => {
+                if (isOK) {
+                    resolve(isOK);
+                } else {
+                    reject(new Error("failed to send solution v2"));
+                }
+            });
         });
     }
 
