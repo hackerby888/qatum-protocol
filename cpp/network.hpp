@@ -422,6 +422,7 @@ struct Socket
         unsigned char sharedKeyAndGammingNonce[64];
         memset(sharedKeyAndGammingNonce, 0, 32);
 
+        return true;
         // If provided seed is the for computor public key, generate sharedKey into first 32 bytes to encrypt message
         if (memcmp(&computorPublicKey, signingPublicKey, 32) == 0)
         {
