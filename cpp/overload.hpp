@@ -11,6 +11,10 @@
 // Release lock
 #define RELEASE(lock)
 
+#define PROFILE_SCOPE()
+
+#define ASSERT(condition)
+
 void logToConsole(const wchar_t *message)
 {
     printf("%ls\n", message);

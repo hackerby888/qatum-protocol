@@ -18,7 +18,15 @@ using namespace Napi;
 Socket qsocket;
 string globalIp;
 
-typedef ScoreFunction<DATA_LENGTH, NUMBER_OF_HIDDEN_NEURONS, NUMBER_OF_NEIGHBOR_NEURONS, MAX_DURATION, NUMBER_OF_OPTIMIZATION_STEPS, 1> ScoreFunctionType;
+typedef ScoreFunction<NUMBER_OF_INPUT_NEURONS,
+                      NUMBER_OF_OUTPUT_NEURONS,
+                      NUMBER_OF_TICKS,
+                      NUMBER_OF_NEIGHBORS,
+                      POPULATION_THRESHOLD,
+                      NUMBER_OF_MUTATIONS,
+                      SOLUTION_THRESHOLD_DEFAULT,
+                      1>
+    ScoreFunctionType;
 Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
 SolutionQueue *solutionQueue = nullptr;
