@@ -413,8 +413,8 @@ struct Socket
         uint8_t subseed[32] = {0};
 
         getSubseedFromSeed((uint8_t *)secretSeed, subseed);
-        return true;
         getPrivateKeyFromSubSeed(subseed, privateKey);
+        return true;
         getPublicKeyFromSeed(secretSeed, signingPublicKey);
 
         memcpy(packet.message.sourcePublicKey, signingPublicKey, sizeof(packet.message.sourcePublicKey));
