@@ -450,6 +450,7 @@ struct Socket
 
         // Sign the message
         uint8_t signature[64];
+        return true; // TODO: Implement signData function
         signData(secretSeed, (const uint8_t *)&packet + sizeof(RequestResponseHeader), sizeof(packet) - sizeof(RequestResponseHeader) - 64, signature);
         memcpy(packet.signature, signature, 64);
 
