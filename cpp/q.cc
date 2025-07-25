@@ -385,7 +385,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     uint8_t privateKey[32] = {0};
     const char secretSeed[55] = {0};
     char publicIdentity[128] = {0};
-    getIdentityFromPublicKey(signingPublicKey, publicIdentity);
+    / getIdentityFromPublicKey(signingPublicKey, publicIdentity);
 
     // getPublicKeyFromSeed(secretSeed, signingPublicKey);
     // getPublicKeyFromPrivateKey(privateKey, signingPublicKey);
