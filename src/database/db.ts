@@ -105,10 +105,10 @@ namespace QatumDb {
             .toArray();
     }
 
-    export function insertSolution(solution: SolutionNetState) {
+    export async function insertSolution(solution: SolutionNetState) {
         try {
             if (!database) return;
-            return getSolutionsCollection()?.insertOne({
+            return await getSolutionsCollection()?.insertOne({
                 ...solution,
                 epoch: Explorer.ticksData.tickInfo.epoch,
             });

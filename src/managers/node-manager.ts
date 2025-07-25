@@ -517,7 +517,11 @@ namespace NodeManager {
     export async function init(ips: string, secretSeed: string) {
         LOG("node", "init node manager");
         RELIABLE_NODES_API = process.env.RELIABLE_NODES_API || "";
-        if(!RELIABLE_NODES_API) LOG("warning", "RELIABLE_NODES_API is not defined, will use node ip from local NODE_IPS");
+        if (!RELIABLE_NODES_API)
+            LOG(
+                "warning",
+                "RELIABLE_NODES_API is not defined, will use node ip from local NODE_IPS"
+            );
         if (nodeIps.length === 0) {
             nodeIps = ips.split(",").map((ip) => ip.trim());
         }
