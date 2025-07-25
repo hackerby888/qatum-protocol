@@ -43,7 +43,7 @@ async function main() {
         await ComputorIdManager.init();
         WorkerManager.init();
         SolutionManager.init();
-        PaymentManager.init();
+        // PaymentManager.init();
         await NodeManager.init(
             process.env.NODE_IPS as string,
             process.env.SECRET_SEED as string
