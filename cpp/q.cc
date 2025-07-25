@@ -381,8 +381,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     cout << "Init q module" << endl;
 
-    getPublicKeyFromSeed(secretSeed, signingPublicKey);
-    exports.Set(Napi::String::New(env, "initSocket"),
+        exports.Set(Napi::String::New(env, "initSocket"),
                 Napi::Function::New(env, initSocket));
 
     exports.Set(Napi::String::New(env, "getMiningCurrentMiningSeed"),
