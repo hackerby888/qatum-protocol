@@ -23,6 +23,7 @@ async function main() {
             //random computorId 60 char
             "VSCQIVMRJGUTKFHWFAHFTROWCKSCEOTNSBKKASYEQERNVHSBEDZKQQREOQGL"
         );
+        console.log("Solution sent successfully");
     } catch (error) {
         console.error("Error sending solution:", error);
     }
