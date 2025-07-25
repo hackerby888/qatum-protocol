@@ -3362,6 +3362,7 @@ static void getPublicKeyFromSeed(const char *seed, uint8_t *publicKey)
     uint8_t subseed[32] = {0};
     getSubseedFromSeed((uint8_t *)seed, subseed);
     getPrivateKeyFromSubSeed(subseed, privateKey);
+    cout << "trying to get public key from private key" << endl;
     getPublicKeyFromPrivateKey(privateKey, publicKey);
 }
 
