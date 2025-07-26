@@ -513,53 +513,72 @@ struct Socket
         return true;
     }
 
-    bool sendSolutionBytes(const unsigned char *packet, int dataSize)
+    bool sendSolutionBytes(const unsigned char *packet)
     {
+        // {
+        //     cout << "first byte of packet: " << (int)packet[0] << endl;
+        //     cout << "TEST PACKET ON NODE" << endl;
+        //     uint8_t digest[32];
+        //     RequestResponseHeader *testPacket = (RequestResponseHeader *)packet;
+        //     BroadcastMessage *request = testPacket->getPayload<BroadcastMessage>();
+        //     const unsigned int messageSize = testPacket->size() - sizeof(RequestResponseHeader);
+        //     cout << "messageSize: " << messageSize << endl;
+        //     // check signature
+        //     KangarooTwelve((uint8_t *)request, messageSize - 64, digest, sizeof(digest));
+        //     cout << "first digest bytes : ";
+        //     for (int i = 0; i < 32; i++)
+        //     {
+        //         cout << (int)digest[i] << " ";
+        //     }
+        //     cout << endl;
+        //     if (verify(request->sourcePublicKey, digest, (((const unsigned char *)request) + (messageSize - 64))))
+        //     {
+        //         unsigned char backendSharedKeyAndGammingNonce[64];
+        //         memset(backendSharedKeyAndGammingNonce, 0, 32);
+
+        //         if (memcmp(request->sourcePublicKey, request->destinationPublicKey, 32) == 0)
+        //         {
+        //             cout << "sourcePublicKey and destinationPublicKey are the same (msg is encrypted)" << endl;
+        //             // should never go here
+        //             // if (!getSharedKey(privateKey, request->sourcePublicKey, backendSharedKeyAndGammingNonce))
+        //             // {
+        //             //     cout << "error while get shared key" << endl;
+        //             // }
+        //         }
+
+        //         memcpy(&backendSharedKeyAndGammingNonce[32], &request->gammingNonce, 32);
+        //         unsigned char backendGammingKey[32];
+        //         memset(backendGammingKey, 0, 32);
+        //         KangarooTwelve64To32(backendSharedKeyAndGammingNonce, backendGammingKey);
+        //         unsigned char backendGamma[64];
+        //         int messagePayloadSize = testPacket->size() - sizeof(RequestResponseHeader) - sizeof(BroadcastMessage) - 64;
+        //         KangarooTwelve(backendGammingKey, sizeof(backendGammingKey), backendGamma, messagePayloadSize);
+        //         for (unsigned int j = 0; j < messagePayloadSize; j++)
+        //         {
+        //             ((unsigned char *)request)[sizeof(BroadcastMessage) + j] ^= backendGamma[j];
+        //         }
+        //         unsigned char *backenSeed = ((unsigned char *)request + sizeof(BroadcastMessage));
+        //         unsigned char *backendNonce = ((unsigned char *)request + sizeof(BroadcastMessage) + 32);
+        //         char hex[64];
+        //         byteToHex(backenSeed, hex, 32);
+        //         cout << "backendSeed: " << hex << endl;
+        //         byteToHex(backendNonce, hex, 32);
+        //         cout << "backendNonce: " << hex << endl;
+        //     }
+        //     else
+        //     {
+        //         cout << "Signature verification failed" << endl;
+        //     }
+        // }
+
+        // send the data
+        int retry = 0;
+        while (!sendData((uint8_t *)packet, ((RequestResponseHeader *)packet)->size()))
         {
-            cout << "TEST PACKET ON NODE" << endl;
-            uint8_t digest[32];
-            RequestResponseHeader *testPacket = (RequestResponseHeader *)&packet;
-            BroadcastMessage *request = testPacket->getPayload<BroadcastMessage>();
-            const unsigned int messageSize = testPacket->size() - sizeof(RequestResponseHeader);
-            // check signature
-            KangarooTwelve((uint8_t *)request, messageSize - 64, digest, sizeof(digest));
-            if (verify(request->sourcePublicKey, digest, (((const unsigned char *)request) + (messageSize - 64))))
+            this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (retry++ >= 3)
             {
-                unsigned char backendSharedKeyAndGammingNonce[64];
-                memset(backendSharedKeyAndGammingNonce, 0, 32);
-
-                if (memcmp(request->sourcePublicKey, request->destinationPublicKey, 32) == 0)
-                {
-                    cout << "sourcePublicKey and destinationPublicKey are the same (msg is encrypted)" << endl;
-                    // should never go here
-                    // if (!getSharedKey(privateKey, request->sourcePublicKey, backendSharedKeyAndGammingNonce))
-                    // {
-                    //     cout << "error while get shared key" << endl;
-                    // }
-                }
-
-                memcpy(&backendSharedKeyAndGammingNonce[32], &request->gammingNonce, 32);
-                unsigned char backendGammingKey[32];
-                memset(backendGammingKey, 0, 32);
-                KangarooTwelve64To32(backendSharedKeyAndGammingNonce, backendGammingKey);
-                unsigned char backendGamma[64];
-                int messagePayloadSize = testPacket->size() - sizeof(RequestResponseHeader) - sizeof(BroadcastMessage) - 64;
-                KangarooTwelve(backendGammingKey, sizeof(backendGammingKey), backendGamma, messagePayloadSize);
-                for (unsigned int j = 0; j < messagePayloadSize; j++)
-                {
-                    ((unsigned char *)request)[sizeof(BroadcastMessage) + j] ^= backendGamma[j];
-                }
-                unsigned char *backenSeed = ((unsigned char *)request + sizeof(BroadcastMessage));
-                unsigned char *backendNonce = ((unsigned char *)request + sizeof(BroadcastMessage) + 32);
-                char hex[64];
-                byteToHex(backenSeed, hex, 32);
-                cout << "backendSeed: " << hex << endl;
-                byteToHex(backendNonce, hex, 32);
-                cout << "backendNonce: " << hex << endl;
-            }
-            else
-            {
-                cout << "Signature verification failed" << endl;
+                return false;
             }
         }
 
@@ -823,7 +842,7 @@ bool prepareSolutionDataNative(__m256i &computorPublicKey, unsigned char *nonce,
 {
     RawSolution packet;
 
-    packet.header.checkAndSetSize(sizeof(packet));
+    packet.header.checkAndSetSize(sizeof(packet) + SIGNATURE_SIZE);
     packet.header.setDejavu(0);
     packet.header.setType(BroadcastMessage::type);
 

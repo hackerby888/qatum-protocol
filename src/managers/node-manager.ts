@@ -570,13 +570,21 @@ namespace NodeManager {
                 0,
                 64
             ),
-            "SIKTFXJDOVODFBCBGPXZKEAMSYWBMUMKQADKGWURBAWRMKPWJLQGNIBFOTIC"
+            "MLABBWNRZZXKSETUIWDJFZXIWKCBBZXKQAXFTOWPEEIFXFKHOSHKWEPAGXJN"
         );
 
         let signedSolution = await signRawSolutionData(rawSolutionData);
-        console.log("signedSolution: ", signedSolution);
 
-        await sendSolutionV2(signedSolution);
+        try {
+            await sendSolutionV2(signedSolution);
+            LOG("node", "test solution sent successfully");
+        } catch (error: any) {
+            LOG(
+                "error",
+                "NodeManager.init: failed to send test solution: " +
+                    error.message
+            );
+        }
 
         await initToNodeSocket();
     }
@@ -601,21 +609,18 @@ namespace NodeManager {
 
         let { schnorrq, K12 } = await crypto.crypto;
         const digest = new Uint8Array(QubicDefinitions.DIGEST_LENGTH).fill(0);
-        console.log("digest: ", digest);
 
         // skip request response header
         let dataToSign = data.slice(8);
 
         K12(dataToSign, digest, QubicDefinitions.DIGEST_LENGTH);
         const signature = schnorrq.sign(myPrivateKey, myPublicKey, digest);
-        console.log("signature: ", signature);
-        console.log("digest", digest);
 
         // append signature to data
         const signedData = new Uint8Array(RawSolutionSize + signature.length);
         signedData.set(data, 0);
         signedData.set(signature, RawSolutionSize);
-        console.log("signedData: ", signedData);
+
         // return signed data
         return signedData;
     }
@@ -632,7 +637,6 @@ namespace NodeManager {
             currentSecretSeed,
             myIndentity
         );
-        console.log("prepareSolutionData: ", buff);
         return buff;
     }
 

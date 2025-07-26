@@ -307,7 +307,7 @@ public:
     {
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
-        isOk = sendSocket.sendSolutionBytes(solutionRaw, sizeof(RawSolution) + SIGNATURE_SIZE) && isOk;
+        isOk = sendSocket.sendSolutionBytes(solutionRaw) && isOk;
     }
 
     void OnOK() override
@@ -379,12 +379,6 @@ Napi::Value sendSolutionV2(const Napi::CallbackInfo &info)
     Function cb = info[2].As<Function>();
     Napi::Buffer<unsigned char> solutionBuffer = info[1].As<Napi::Buffer<unsigned char>>();
     unsigned char *solutionRaw = solutionBuffer.Data();
-
-    cout
-        << "solutionRaw size: " << solutionBuffer.Length() << endl;
-    // print first byte
-    cout << "solutionRaw first byte: " << (int)solutionRaw[0] << endl;
-
     SubmitSolutionWorkerV2 *wk = new SubmitSolutionWorkerV2(cb, info[0].As<Napi::String>(), solutionRaw);
     wk->Queue();
     return info.Env().Undefined();
@@ -456,18 +450,6 @@ Napi::Value pay(const Napi::CallbackInfo &info)
 
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
-
-    cout << "RequestResponseHeader size: " << sizeof(RequestResponseHeader) << endl;
-    cout << sizeof(RawSolution) << endl;
-    struct
-    {
-        RequestResponseHeader header;
-        BroadcastMessage message;
-        unsigned char solutionMiningSeed[32];
-        unsigned char solutionNonce[32];
-        unsigned char signature[64];
-    } packet;
-    cout << sizeof(packet) << endl;
     exports.Set(Napi::String::New(env, "initSocket"),
                 Napi::Function::New(env, initSocket));
 
