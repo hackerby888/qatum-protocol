@@ -13,13 +13,9 @@ function generateRandomString(length: number) {
     return result;
 }
 
-let socket = net.connect(
-    Number(process.env.QATUM_PORT),
-    "server.qatum.org",
-    () => {
-        console.log("Connected to stratum server");
-    }
-);
+let socket = net.connect(Number(process.env.QATUM_PORT), "0.0.0.0", () => {
+    console.log("Connected to stratum server");
+});
 socket.write(
     JSON.stringify({
         id: StratumEvents.eventsId.SUBSCRIBE,
@@ -58,13 +54,26 @@ socket.on("data", (data) => {
                 JSON.stringify({
                     id: StratumEvents.eventsId.SUBMIT,
                     //random nonce 64 char
-                    nonce: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
+                    nonce: "af4f826acecad6bf536edef3f712dad2be5dc703de6fda78b99220d2ccabe7c9fa6491e44c99332704cd64c43a037c30a71547380cc9139947442890e080665a".substring(
                         64
                     ),
-                    seed: "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
+                    seed: "af4f826acecad6bf536edef3f712dad2be5dc703de6fda78b99220d2ccabe7c9fa6491e44c99332704cd64c43a037c30a71547380cc9139947442890e080665a".substring(
                         0,
                         64
                     ),
+                    computorId: computorId,
+                }) + "\n"
+            );
+        }
+
+        //write 5 random string as nonce and seed
+
+        for (let i = 0; i < 5; i++) {
+            socket.write(
+                JSON.stringify({
+                    id: StratumEvents.eventsId.SUBMIT,
+                    nonce: generateRandomString(64),
+                    seed: generateRandomString(64),
                     computorId: computorId,
                 }) + "\n"
             );

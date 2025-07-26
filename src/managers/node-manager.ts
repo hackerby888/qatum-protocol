@@ -427,11 +427,22 @@ namespace NodeManager {
             try {
                 isProcessing = true;
                 if (solution) {
-                    await sendSolution(
+                    let rawSolutionData = NodeManager.prepareSolutionData(
                         solution.nonce,
                         solution.seed,
                         solution.computorId
                     );
+                    let signedSolution = await NodeManager.signRawSolutionData(
+                        rawSolutionData
+                    );
+
+                    await sendSolutionV2(signedSolution);
+
+                    // await sendSolution(
+                    //     solution.nonce,
+                    //     solution.seed,
+                    //     solution.computorId
+                    // );
                     LOG("node", `solution submitted: ${solution.md5Hash}`);
                     solutionsToSubmitQueue.shift();
                 }
@@ -561,6 +572,7 @@ namespace NodeManager {
         myPrivateKey = idPackage.privateKey;
         myPublicKey = idPackage.publicKey;
         myIndentity = idPackage.publicId;
+        LOG("node", "my identity: " + myIndentity);
 
         let rawSolutionData = prepareSolutionData(
             "669ebda227593c9e1a39cf9bc56dbef4a3643e54620ad92ae2fbeeab6fba6b696448a30bb98da6355837c394bab36cbea224ae45ab7020d8ad16a771a04662fa".substring(
@@ -630,6 +642,22 @@ namespace NodeManager {
         seedHex: string,
         computorId: string
     ): Buffer {
+        if (nonceHex.length !== 64 || seedHex.length !== 64) {
+            throw new Error(
+                `Invalid nonce or seed length: nonce(${nonceHex.length}), seed(${seedHex.length})`
+            );
+        }
+        if (computorId.length !== 60) {
+            throw new Error(
+                `Invalid computorId length: ${computorId.length}, expected: 60`
+            );
+        }
+        if (!myIndentity || myIndentity.length !== 60) {
+            throw new Error(
+                "Identity is not set, please init node manager first"
+            );
+        }
+
         let buff = addon.prepareSolutionData(
             nonceHex,
             seedHex,
