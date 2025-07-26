@@ -291,6 +291,37 @@ private:
     string secretSeed;
 };
 
+class SubmitSolutionWorkerV2 : public AsyncWorker
+{
+public:
+    SubmitSolutionWorkerV2(Function &callback, string ip, unsigned char *solutionRaw)
+        : AsyncWorker(callback)
+    {
+        this->ip = ip;
+        this->solutionRaw = solutionRaw;
+    }
+
+    ~SubmitSolutionWorkerV2() {}
+
+    void Execute() override
+    {
+        Socket sendSocket;
+        isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
+        isOk = sendSocket.sendSolutionBytes(solutionRaw) && isOk;
+    }
+
+    void OnOK() override
+    {
+        HandleScope scope(Env());
+        Callback().Call({Boolean::New(Env(), isOk)});
+    }
+
+private:
+    bool isOk;
+    string ip;
+    unsigned char *solutionRaw;
+};
+
 /////////// Native Funtions ///////////
 Napi::Value initVerifyThread(const Napi::CallbackInfo &info)
 {
@@ -343,6 +374,46 @@ Napi::Value sendSolution(const Napi::CallbackInfo &info)
     return info.Env().Undefined();
 }
 
+Napi::Value sendSolutionV2(const Napi::CallbackInfo &info)
+{
+    Function cb = info[2].As<Function>();
+    Napi::Buffer<unsigned char> solutionBuffer = info[1].As<Napi::Buffer<unsigned char>>();
+    unsigned char *solutionRaw = solutionBuffer.Data();
+    SubmitSolutionWorkerV2 *wk = new SubmitSolutionWorkerV2(cb, info[0].As<Napi::String>(), solutionRaw);
+    wk->Queue();
+    return info.Env().Undefined();
+}
+
+Napi::Buffer<unsigned char> prepareSolutionData(const Napi::CallbackInfo &info)
+{
+    string nonceHex = info[0].As<Napi::String>().Utf8Value();
+    string seedHex = info[1].As<Napi::String>().Utf8Value();
+    string computorId = info[2].As<Napi::String>().Utf8Value();
+    string secretSeed = info[3].As<Napi::String>().Utf8Value();
+    string myIndentity = info[4].As<Napi::String>().Utf8Value();
+
+    if (nonceHex.length() != 64 || seedHex.length() != 64 || computorId.length() != 60 || secretSeed.length() != 55 || myIndentity.length() != 60)
+    {
+        throw Napi::Error::New(info.Env(), "Invalid input data length");
+    }
+
+    __m256i computorPublicKey;
+    unsigned char nonce[32];
+    unsigned char seed[32];
+    hexToByte(nonceHex.c_str(), nonce, 32);
+    hexToByte(seedHex.c_str(), seed, 32);
+    getPublicKeyFromIdentity((const unsigned char *)computorId.c_str(), (unsigned char *)&computorPublicKey);
+
+    unsigned char *solutionRaw = new unsigned char[sizeof(RawSolution)];
+    prepareSolutionDataNative(computorPublicKey, nonce, seed, secretSeed.c_str(), myIndentity.c_str(), solutionRaw);
+
+    // Retunr js buffer
+    Napi::Env env = info.Env();
+    Napi::Buffer<unsigned char> buffer = Napi::Buffer<unsigned char>::New(env, solutionRaw, sizeof(RawSolution));
+
+    return buffer;
+}
+
 Napi::Value pushSolutionToVerifyQueue(const Napi::CallbackInfo &info)
 {
     // string seed = info[0].As<Napi::String>().Utf8Value();
@@ -387,6 +458,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
     exports.Set(Napi::String::New(env, "sendSolution"),
                 Napi::Function::New(env, sendSolution));
+
+    exports.Set(Napi::String::New(env, "sendSolutionV2"),
+                Napi::Function::New(env, sendSolutionV2));
+
+    exports.Set(Napi::String::New(env, "prepareSolutionData"),
+                Napi::Function::New(env, prepareSolutionData));
 
     exports.Set(Napi::String::New(env, "initLogger"),
                 Napi::Function::New(env, initLogger));

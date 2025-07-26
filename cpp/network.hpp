@@ -513,6 +513,78 @@ struct Socket
         return true;
     }
 
+    bool sendSolutionBytes(const unsigned char *packet)
+    {
+        // {
+        //     cout << "first byte of packet: " << (int)packet[0] << endl;
+        //     cout << "TEST PACKET ON NODE" << endl;
+        //     uint8_t digest[32];
+        //     RequestResponseHeader *testPacket = (RequestResponseHeader *)packet;
+        //     BroadcastMessage *request = testPacket->getPayload<BroadcastMessage>();
+        //     const unsigned int messageSize = testPacket->size() - sizeof(RequestResponseHeader);
+        //     cout << "messageSize: " << messageSize << endl;
+        //     // check signature
+        //     KangarooTwelve((uint8_t *)request, messageSize - 64, digest, sizeof(digest));
+        //     cout << "first digest bytes : ";
+        //     for (int i = 0; i < 32; i++)
+        //     {
+        //         cout << (int)digest[i] << " ";
+        //     }
+        //     cout << endl;
+        //     if (verify(request->sourcePublicKey, digest, (((const unsigned char *)request) + (messageSize - 64))))
+        //     {
+        //         unsigned char backendSharedKeyAndGammingNonce[64];
+        //         memset(backendSharedKeyAndGammingNonce, 0, 32);
+
+        //         if (memcmp(request->sourcePublicKey, request->destinationPublicKey, 32) == 0)
+        //         {
+        //             cout << "sourcePublicKey and destinationPublicKey are the same (msg is encrypted)" << endl;
+        //             // should never go here
+        //             // if (!getSharedKey(privateKey, request->sourcePublicKey, backendSharedKeyAndGammingNonce))
+        //             // {
+        //             //     cout << "error while get shared key" << endl;
+        //             // }
+        //         }
+
+        //         memcpy(&backendSharedKeyAndGammingNonce[32], &request->gammingNonce, 32);
+        //         unsigned char backendGammingKey[32];
+        //         memset(backendGammingKey, 0, 32);
+        //         KangarooTwelve64To32(backendSharedKeyAndGammingNonce, backendGammingKey);
+        //         unsigned char backendGamma[64];
+        //         int messagePayloadSize = testPacket->size() - sizeof(RequestResponseHeader) - sizeof(BroadcastMessage) - 64;
+        //         KangarooTwelve(backendGammingKey, sizeof(backendGammingKey), backendGamma, messagePayloadSize);
+        //         for (unsigned int j = 0; j < messagePayloadSize; j++)
+        //         {
+        //             ((unsigned char *)request)[sizeof(BroadcastMessage) + j] ^= backendGamma[j];
+        //         }
+        //         unsigned char *backenSeed = ((unsigned char *)request + sizeof(BroadcastMessage));
+        //         unsigned char *backendNonce = ((unsigned char *)request + sizeof(BroadcastMessage) + 32);
+        //         char hex[64];
+        //         byteToHex(backenSeed, hex, 32);
+        //         cout << "backendSeed: " << hex << endl;
+        //         byteToHex(backendNonce, hex, 32);
+        //         cout << "backendNonce: " << hex << endl;
+        //     }
+        //     else
+        //     {
+        //         cout << "Signature verification failed" << endl;
+        //     }
+        // }
+
+        // send the data
+        int retry = 0;
+        while (!sendData((uint8_t *)packet, ((RequestResponseHeader *)packet)->size()))
+        {
+            this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (retry++ >= 3)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     long long getSendToManyV1Fee()
     {
         struct
@@ -756,3 +828,65 @@ struct Socket
         return result;
     }
 };
+
+// 168 bytes
+struct RawSolution
+{
+    RequestResponseHeader header;
+    BroadcastMessage message;
+    unsigned char solutionMiningSeed[32];
+    unsigned char solutionNonce[32];
+};
+
+bool prepareSolutionDataNative(__m256i &computorPublicKey, unsigned char *nonce, unsigned char *randomSeed, const char *secretSeed, const char *indentity, const unsigned char *solution)
+{
+    RawSolution packet;
+
+    packet.header.checkAndSetSize(sizeof(packet) + SIGNATURE_SIZE);
+    packet.header.setDejavu(0);
+    packet.header.setType(BroadcastMessage::type);
+
+    uint8_t signingPublicKey[32] = {0};
+    uint8_t privateKey[32] = {0};
+    uint8_t subseed[32] = {0};
+
+    getSubseedFromSeed((uint8_t *)secretSeed, subseed);
+    getPrivateKeyFromSubSeed(subseed, privateKey);
+    getPublicKeyFromIdentity((const unsigned char *)indentity, signingPublicKey);
+
+    memcpy(packet.message.sourcePublicKey, signingPublicKey, sizeof(packet.message.sourcePublicKey));
+    memcpy(packet.message.destinationPublicKey, &computorPublicKey, sizeof(packet.message.destinationPublicKey));
+
+    unsigned char sharedKeyAndGammingNonce[64];
+    memset(sharedKeyAndGammingNonce, 0, 32);
+
+    // If provided seed is the for computor public key, generate sharedKey into first 32 bytes to encrypt message
+    if (memcmp(&computorPublicKey, signingPublicKey, 32) == 0)
+    {
+        getSharedKey(privateKey, (const unsigned char *)&computorPublicKey, sharedKeyAndGammingNonce);
+    }
+
+    // Last 32 bytes of sharedKeyAndGammingNonce is randomly created so that gammingKey[0] = 0 (MESSAGE_TYPE_SOLUTION)
+    unsigned char gammingKey[32];
+    do
+    {
+        _rdrand64_step((unsigned long long *)&packet.message.gammingNonce[0]);
+        _rdrand64_step((unsigned long long *)&packet.message.gammingNonce[8]);
+        _rdrand64_step((unsigned long long *)&packet.message.gammingNonce[16]);
+        _rdrand64_step((unsigned long long *)&packet.message.gammingNonce[24]);
+        memcpy(&sharedKeyAndGammingNonce[32], packet.message.gammingNonce, 32);
+        KangarooTwelve64To32(sharedKeyAndGammingNonce, gammingKey);
+    } while (gammingKey[0]);
+
+    unsigned char gamma[32 + 32];
+    KangarooTwelve(gammingKey, sizeof(gammingKey), gamma, sizeof(gamma));
+    for (unsigned int i = 0; i < 32; i++)
+    {
+        packet.solutionMiningSeed[i] = randomSeed[i] ^ gamma[i];
+        packet.solutionNonce[i] = nonce[i] ^ gamma[i + 32];
+    }
+
+    memcpy((void *)solution, &packet, sizeof(packet));
+
+    return true;
+}
