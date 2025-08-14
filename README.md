@@ -6,18 +6,18 @@ Qatum is the stratum-like mining protocol for qubic.
 
 > The client implementation can be found here https://github.com/hackerby888/Qiner.
 
-#### Documentation
+## Documentation
 
 The documentation is divided into several sections:
 
 -   [How to interact with Qatum protocol](./docs/how-to-interact-with-qatum.md)
 -   [How to host your own Qatum server](./docs/how-to-host-your-own-qatum-server.md)
 
-#### Qatum Flow
+## Qatum Flow
 
 ![alt text](https://imgur.com/bT8K9Es.png)
 
-#### Qatum Events Id
+## Qatum Events Id
 
 ```ts
 {
@@ -30,7 +30,7 @@ The documentation is divided into several sections:
 };
 ```
 
-#### Client Packet
+## Client Packet
 
 ```ts
 SubscribePacket {
@@ -53,7 +53,7 @@ ReportHashratePacket {
     }
 ```
 
-#### Server Packet
+## Server Packet
 
 ```ts
 SubscribePacket {
@@ -84,3 +84,8 @@ NewDifficultyPacket {
         difficulty: number;
     }
 ```
+
+## Technical Support
+
+- Discord: [Feiyu .IV](https://discordapp.com/users/1222420225258164296)
+- Telegram: [Nevermine](https://t.me/nevermineio)(@nevermineio)
