@@ -21,64 +21,64 @@ const optionDefinitions = [{ name: "mode", alias: "m", type: String }];
 const options = commandLineArgs(optionDefinitions);
 
 function createDataPath() {
-    if (!fs.existsSync(DATA_PATH)) {
-        fs.mkdirSync(DATA_PATH);
-    }
+  if (!fs.existsSync(DATA_PATH)) {
+    fs.mkdirSync(DATA_PATH);
+  }
 }
 
 async function main() {
-    createDataPath();
-    let mode = options.mode || process.env.MODE;
-    if (mode === "main") {
-        if (process.env.MONGODB) {
-            await QatumDb.connectDB();
-        } else {
-            LOG(
-                "warning",
-                "MONGODB is not defined, skipping database connection (the pool still working)"
-            );
-        }
-        await Explorer.init();
-        await Platform.loadData();
-        await ComputorIdManager.init();
-        WorkerManager.init();
-        SolutionManager.init();
-        // PaymentManager.init();
-        await NodeManager.init(
-            process.env.NODE_IPS as string,
-            process.env.SECRET_SEED as string
-        );
-        await QatumServer.createServer(Number(process.env.QATUM_PORT));
-        await HttpServer.createServer(Number(process.env.HTTP_PORT));
-        await VerificationClusterServer.createServer(
-            Number(process.env.CLUSTER_PORT)
-        );
-    } else if (mode === "verify") {
-        if (!process.env.CLUSTER_MAIN_SERVER) {
-            LOG("error", "CLUSTER_MAIN_SERVER is not defined");
-            await Platform.exit(1);
-        }
-        NodeManager.initLogger();
-        VerificationClusterServer.connectToServer(
-            process.env.CLUSTER_MAIN_SERVER as string
-        );
-        SolutionManager.init();
-        NodeManager.initVerifyThread(
-            Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
-        );
+  createDataPath();
+  let mode = options.mode || process.env.MODE;
+  if (mode === "main") {
+    if (process.env.MONGODB) {
+      await QatumDb.connectDB();
     } else {
-        LOG("error", "mode is not defined");
-        await Platform.exit(1);
+      LOG(
+        "warning",
+        "MONGODB is not defined, skipping database connection (the pool still working)"
+      );
     }
+    await Explorer.init();
+    await Platform.loadData();
+    await ComputorIdManager.init();
+    WorkerManager.init();
+    SolutionManager.init();
+    // PaymentManager.init();
+    // await NodeManager.init(
+    //   process.env.NODE_IPS as string,
+    //   process.env.SECRET_SEED as string
+    // );
+    await QatumServer.createServer(Number(process.env.QATUM_PORT));
+    await HttpServer.createServer(Number(process.env.HTTP_PORT));
+    await VerificationClusterServer.createServer(
+      Number(process.env.CLUSTER_PORT)
+    );
+  } else if (mode === "verify") {
+    if (!process.env.CLUSTER_MAIN_SERVER) {
+      LOG("error", "CLUSTER_MAIN_SERVER is not defined");
+      await Platform.exit(1);
+    }
+    NodeManager.initLogger();
+    VerificationClusterServer.connectToServer(
+      process.env.CLUSTER_MAIN_SERVER as string
+    );
+    SolutionManager.init();
+    NodeManager.initVerifyThread(
+      Number(process.env.MAX_VERIFICATION_THREADS) || os.cpus().length
+    );
+  } else {
+    LOG("error", "mode is not defined");
+    await Platform.exit(1);
+  }
 }
 
 main();
 
 process.on("SIGINT", async () => {
-    await Platform.exit(0);
+  await Platform.exit(0);
 });
 
 process.on("uncaughtException", async (err) => {
-    LOG("error", err.message);
-    await Platform.exit(1);
+  LOG("error", err.message);
+  await Platform.exit(1);
 });

@@ -27,7 +27,7 @@
 #define RESPOND_SYSTEM_INFO 47
 #define BROADCAST_TRANSACTION 24
 #define SIGNATURE_SIZE 64
-#define PORT 21841
+#define PORT 31841
 
 using namespace std;
 
