@@ -304,7 +304,7 @@ namespace SolutionManager {
         try {
             let [md5Hash, solution] = solutionQueue.entries().next().value as [
                 string,
-                Solution
+                Solution,
             ];
             //this request pop solution from cluster, we don't need to push it to the queue on this server
             if (!fromCluster) {
@@ -357,10 +357,12 @@ namespace SolutionManager {
             isShare,
             isSolution,
             resultScore,
+            algo,
         }: {
             isShare: boolean;
             isSolution: boolean;
             resultScore: number;
+            algo: number;
         }
     ) {
         let solution =
@@ -372,6 +374,7 @@ namespace SolutionManager {
             isShare,
             isWritten: false,
             resultScore,
+            algo,
         });
         solutionVerifyingQueue.delete(md5Hash);
         solutionClusterVerifyingQueue.delete(md5Hash);

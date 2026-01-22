@@ -6,6 +6,7 @@
 #include <string>
 #include "memory.hpp"
 #include "keyUtils.hpp"
+#include "m256.hpp"
 
 #if defined(__GNUC__) && !defined(__clang__)
 #define _andn_u64(a, b) __andn_u64(a, b)
@@ -2159,8 +2160,8 @@ static void table_lookup_fixed_base(point_precomp_t P, unsigned int digit, unsig
 { // Table lookup to extract a point represented as (x+y,y-x,2t) corresponding to extended twisted Edwards coordinates (X:Y:Z:T) with Z=1
     if (sign)
     {
-        *((__m256i *)P->xy) = *((__m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->yx);
-        *((__m256i *)P->yx) = *((__m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->xy);
+        *((m256i *)P->xy) = *((m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->yx);
+        *((m256i *)P->yx) = *((m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->xy);
         P->t2[0][0] = ~(((point_precomp_t *)FIXED_BASE_TABLE)[digit])->t2[0][0];
         P->t2[0][1] = 0x7FFFFFFFFFFFFFFF - (((point_precomp_t *)FIXED_BASE_TABLE)[digit])->t2[0][1];
         P->t2[1][0] = ~(((point_precomp_t *)FIXED_BASE_TABLE)[digit])->t2[1][0];
@@ -2168,9 +2169,9 @@ static void table_lookup_fixed_base(point_precomp_t P, unsigned int digit, unsig
     }
     else
     {
-        *((__m256i *)P->xy) = *((__m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->xy);
-        *((__m256i *)P->yx) = *((__m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->yx);
-        *((__m256i *)P->t2) = *((__m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->t2);
+        *((m256i *)P->xy) = *((m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->xy);
+        *((m256i *)P->yx) = *((m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->yx);
+        *((m256i *)P->t2) = *((m256i *)((point_precomp_t *)FIXED_BASE_TABLE)[digit]->t2);
     }
 }
 
@@ -2274,18 +2275,18 @@ static void R1_to_R2(point_extproj_t P, point_extproj_precomp_t Q)
 }
 
 static void R1_to_R3(point_extproj_t P, point_extproj_precomp_t Q)
-{                                               // Conversion from representation (X,Y,Z,Ta,Tb) to (X+Y,Y-X,Z,T), where T = Ta*Tb
-    fp2add1271(P->x, P->y, Q->xy);              // XQ = (X1+Y1)
-    fp2sub1271(P->y, P->x, Q->yx);              // YQ = (Y1-X1)
-    fp2mul1271(P->ta, P->tb, Q->t2);            // TQ = T1
-    *((__m256i *)&Q->z2) = *((__m256i *)&P->z); // ZQ = Z1
+{                                           // Conversion from representation (X,Y,Z,Ta,Tb) to (X+Y,Y-X,Z,T), where T = Ta*Tb
+    fp2add1271(P->x, P->y, Q->xy);          // XQ = (X1+Y1)
+    fp2sub1271(P->y, P->x, Q->yx);          // YQ = (Y1-X1)
+    fp2mul1271(P->ta, P->tb, Q->t2);        // TQ = T1
+    *((m256i *)&Q->z2) = *((m256i *)&P->z); // ZQ = Z1
 }
 
 static void R2_to_R4(point_extproj_precomp_t P, point_extproj_t Q)
-{                                               // Conversion from representation (X+Y,Y-X,2Z,2dT) to (2X,2Y,2Z,2dT)
-    fp2sub1271(P->xy, P->yx, Q->x);             // XQ = 2*X1
-    fp2add1271(P->xy, P->yx, Q->y);             // YQ = 2*Y1
-    *((__m256i *)&Q->z) = *((__m256i *)&P->z2); // ZQ = 2*Z1
+{                                           // Conversion from representation (X+Y,Y-X,2Z,2dT) to (2X,2Y,2Z,2dT)
+    fp2sub1271(P->xy, P->yx, Q->x);         // XQ = 2*X1
+    fp2add1271(P->xy, P->yx, Q->y);         // YQ = 2*Y1
+    *((m256i *)&Q->z) = *((m256i *)&P->z2); // ZQ = 2*Z1
 }
 
 static void eccdouble(point_extproj_t P)
@@ -2333,10 +2334,10 @@ static void eccadd(point_extproj_precomp_t Q, point_extproj_t P)
 
 static void point_setup(point_t P, point_extproj_t Q)
 { // Point conversion to representation (X,Y,Z,Ta,Tb)
-    *((__m256i *)&Q->x) = *((__m256i *)&P->x);
-    *((__m256i *)&Q->y) = *((__m256i *)&P->y);
-    *((__m256i *)&Q->ta) = *((__m256i *)&Q->x); // Ta = X1
-    *((__m256i *)&Q->tb) = *((__m256i *)&Q->y); // Tb = Y1
+    *((m256i *)&Q->x) = *((m256i *)&P->x);
+    *((m256i *)&Q->y) = *((m256i *)&P->y);
+    *((m256i *)&Q->ta) = *((m256i *)&Q->x); // Ta = X1
+    *((m256i *)&Q->tb) = *((m256i *)&Q->y); // Tb = Y1
     Q->z[0][0] = 1;
     Q->z[0][1] = 0;
     Q->z[1][0] = 0;
@@ -2450,9 +2451,9 @@ VOID_FUNC_DECL ecc_mul_fixed(unsigned long long *k, point_t Q)
     R->z[0][0] = 1;
     R->z[0][1] = 0;
     R->z[1][0] = 0;
-    R->z[1][1] = 0;                             // ZQ = 1
-    *((__m256i *)&R->ta) = *((__m256i *)&R->x); // TaQ = x1
-    *((__m256i *)&R->tb) = *((__m256i *)&R->y); // TbQ = y1
+    R->z[1][1] = 0;                         // ZQ = 1
+    *((m256i *)&R->ta) = *((m256i *)&R->x); // TaQ = x1
+    *((m256i *)&R->tb) = *((m256i *)&R->y); // TbQ = y1
 
     table_lookup_fixed_base(S, 48 + (((((digits[239] << 1) + digits[189]) << 1) + digits[139]) << 1) + digits[89], digits[39]);
     eccmadd(S, R);
@@ -2696,18 +2697,18 @@ static void ecc_phi(point_extproj_t P)
 
 static void eccneg_extproj_precomp(point_extproj_precomp_t P, point_extproj_precomp_t Q)
 { // Point negation
-    *((__m256i *)&Q->t2) = *((__m256i *)&P->t2);
-    *((__m256i *)&Q->yx) = *((__m256i *)&P->xy);
-    *((__m256i *)&Q->xy) = *((__m256i *)&P->yx);
-    *((__m256i *)&Q->z2) = *((__m256i *)&P->z2);
+    *((m256i *)&Q->t2) = *((m256i *)&P->t2);
+    *((m256i *)&Q->yx) = *((m256i *)&P->xy);
+    *((m256i *)&Q->xy) = *((m256i *)&P->yx);
+    *((m256i *)&Q->z2) = *((m256i *)&P->z2);
     fp2neg1271(Q->t2);
 }
 
 static void eccneg_precomp(point_precomp_t P, point_precomp_t Q)
 { // Point negation
-    *((__m256i *)&Q->t2) = *((__m256i *)&P->t2);
-    *((__m256i *)&Q->yx) = *((__m256i *)&P->xy);
-    *((__m256i *)&Q->xy) = *((__m256i *)&P->yx);
+    *((m256i *)&Q->t2) = *((m256i *)&P->t2);
+    *((m256i *)&Q->yx) = *((m256i *)&P->xy);
+    *((m256i *)&Q->xy) = *((m256i *)&P->yx);
     fp2neg1271(Q->t2);
 }
 
@@ -2839,23 +2840,23 @@ static bool ecc_mul_double(unsigned long long *k, unsigned long long *l, point_t
     }
 
     // Computing endomorphisms over point Q
-    *((__m256i *)&Q2->x) = *((__m256i *)&Q1->x);
-    *((__m256i *)&Q2->y) = *((__m256i *)&Q1->y);
-    *((__m256i *)&Q2->z) = *((__m256i *)&Q1->z);
-    *((__m256i *)&Q2->ta) = *((__m256i *)&Q1->ta);
-    *((__m256i *)&Q2->tb) = *((__m256i *)&Q1->tb);
+    *((m256i *)&Q2->x) = *((m256i *)&Q1->x);
+    *((m256i *)&Q2->y) = *((m256i *)&Q1->y);
+    *((m256i *)&Q2->z) = *((m256i *)&Q1->z);
+    *((m256i *)&Q2->ta) = *((m256i *)&Q1->ta);
+    *((m256i *)&Q2->tb) = *((m256i *)&Q1->tb);
     ecc_phi(Q2);
-    *((__m256i *)&Q3->x) = *((__m256i *)&Q1->x);
-    *((__m256i *)&Q3->y) = *((__m256i *)&Q1->y);
-    *((__m256i *)&Q3->z) = *((__m256i *)&Q1->z);
-    *((__m256i *)&Q3->ta) = *((__m256i *)&Q1->ta);
-    *((__m256i *)&Q3->tb) = *((__m256i *)&Q1->tb);
+    *((m256i *)&Q3->x) = *((m256i *)&Q1->x);
+    *((m256i *)&Q3->y) = *((m256i *)&Q1->y);
+    *((m256i *)&Q3->z) = *((m256i *)&Q1->z);
+    *((m256i *)&Q3->ta) = *((m256i *)&Q1->ta);
+    *((m256i *)&Q3->tb) = *((m256i *)&Q1->tb);
     ecc_psi(Q3);
-    *((__m256i *)&Q4->x) = *((__m256i *)&Q2->x);
-    *((__m256i *)&Q4->y) = *((__m256i *)&Q2->y);
-    *((__m256i *)&Q4->z) = *((__m256i *)&Q2->z);
-    *((__m256i *)&Q4->ta) = *((__m256i *)&Q2->ta);
-    *((__m256i *)&Q4->tb) = *((__m256i *)&Q2->tb);
+    *((m256i *)&Q4->x) = *((m256i *)&Q2->x);
+    *((m256i *)&Q4->y) = *((m256i *)&Q2->y);
+    *((m256i *)&Q4->z) = *((m256i *)&Q2->z);
+    *((m256i *)&Q4->ta) = *((m256i *)&Q2->ta);
+    *((m256i *)&Q4->tb) = *((m256i *)&Q2->tb);
     ecc_psi(Q4);
 
     decompose((unsigned long long *)k, k_scalars); // Scalar decomposition
@@ -2982,11 +2983,11 @@ static void ecc_precomp(point_extproj_t P, point_extproj_precomp_t *T)
     point_extproj_t PP;
 
     // Generating Q = phi(P) = (XQ+YQ,YQ-XQ,ZQ,TQ)
-    *((__m256i *)&PP->x) = *((__m256i *)&P->x);
-    *((__m256i *)&PP->y) = *((__m256i *)&P->y);
-    *((__m256i *)&PP->z) = *((__m256i *)&P->z);
-    *((__m256i *)&PP->ta) = *((__m256i *)&P->ta);
-    *((__m256i *)&PP->tb) = *((__m256i *)&P->tb);
+    *((m256i *)&PP->x) = *((m256i *)&P->x);
+    *((m256i *)&PP->y) = *((m256i *)&P->y);
+    *((m256i *)&PP->z) = *((m256i *)&P->z);
+    *((m256i *)&PP->ta) = *((m256i *)&P->ta);
+    *((m256i *)&PP->tb) = *((m256i *)&P->tb);
     ecc_phi(PP);
     R1_to_R3(PP, Q); // Converting from (X,Y,Z,Ta,Tb) to (X+Y,Y-X,Z,T)
 
@@ -3075,10 +3076,10 @@ static bool ecc_mul(point_t P, unsigned long long *k, point_t Q)
     ecc_precomp(R, Table[1]); // Precomputation
     for (unsigned int i = 0; i < 8; i++)
     {
-        *((__m256i *)Table[0][i]->xy) = *((__m256i *)Table[1][i]->yx);
-        *((__m256i *)Table[0][i]->yx) = *((__m256i *)Table[1][i]->xy);
-        *((__m256i *)Table[0][i]->t2) = *((__m256i *)Table[1][i]->t2);
-        *((__m256i *)Table[0][i]->z2) = *((__m256i *)Table[1][i]->z2);
+        *((m256i *)Table[0][i]->xy) = *((m256i *)Table[1][i]->yx);
+        *((m256i *)Table[0][i]->yx) = *((m256i *)Table[1][i]->xy);
+        *((m256i *)Table[0][i]->t2) = *((m256i *)Table[1][i]->t2);
+        *((m256i *)Table[0][i]->z2) = *((m256i *)Table[1][i]->z2);
         fp2neg1271(Table[0][i]->t2);
     }
     R2_to_R4(Table[1][scalars[1] + (scalars[2] << 1) + (scalars[3] << 2)], R);
@@ -3098,7 +3099,7 @@ VOID_FUNC_DECL encode(point_t P, uint8_t *Pencoded)
     const unsigned long long temp1 = (P->x[1][1] & 0x4000000000000000) << 1;
     const unsigned long long temp2 = (P->x[0][1] & 0x4000000000000000) << 1;
 
-    *((__m256i *)Pencoded) = *((__m256i *)P->y);
+    *((m256i *)Pencoded) = *((m256i *)P->y);
     if (!P->x[0][0] && !P->x[0][1])
     {
         ((unsigned long long *)Pencoded)[3] |= temp1;
@@ -3205,15 +3206,15 @@ VOID_FUNC_DECL signWithNonceK(const unsigned char *k, const unsigned char *publi
     unsigned char h[64], temp[32 + 64];
     unsigned long long r[8];
 
-    *((__m256i *)(temp + 32)) = *((__m256i *)(k + 32));
-    *((__m256i *)(temp + 64)) = *((__m256i *)messageDigest);
+    *((m256i *)(temp + 32)) = *((m256i *)(k + 32));
+    *((m256i *)(temp + 64)) = *((m256i *)messageDigest);
 
     KangarooTwelve(temp + 32, 32 + 32, (unsigned char *)r, 64);
 
     ecc_mul_fixed(r, R);
     encode(R, signature); // Encode lowest 32 bytes of signature
-    *((__m256i *)temp) = *((__m256i *)signature);
-    *((__m256i *)(temp + 32)) = *((__m256i *)publicKey);
+    *((m256i *)temp) = *((m256i *)signature);
+    *((m256i *)(temp + 32)) = *((m256i *)publicKey);
 
     KangarooTwelve(temp, 32 + 64, h, 64);
     Montgomery_multiply_mod_order(r, Montgomery_Rprime, r);
@@ -3322,7 +3323,7 @@ static bool getPublicKeyFromIdentity(const unsigned char *identity, unsigned cha
             *((unsigned long long *)&publicKeyBuffer[i << 3]) = *((unsigned long long *)&publicKeyBuffer[i << 3]) * 26 + (identity[i * 14 + j] - 'A');
         }
     }
-    // *((__m256i *)publicKey) = *((__m256i *)publicKeyBuffer);
+    // *((m256i *)publicKey) = *((m256i *)publicKeyBuffer);
     memcpy(publicKey, publicKeyBuffer, 32);
 
     return true;
@@ -3392,7 +3393,7 @@ static bool getSharedKey(const unsigned char *privateKey, const unsigned char *p
         return false;
     }
 
-    *((__m256i *)sharedKey) = *((__m256i *)A->y);
+    *((m256i *)sharedKey) = *((m256i *)A->y);
 
     return true;
 }
@@ -3409,8 +3410,8 @@ static void random2(
 )
 {
     unsigned char state[200];
-    *((__m256i *)&state[0]) = *((__m256i *)publicKey);
-    *((__m256i *)&state[32]) = *((__m256i *)nonce);
+    *((m256i *)&state[0]) = *((m256i *)publicKey);
+    *((m256i *)&state[32]) = *((m256i *)nonce);
     setMem(&state[64], sizeof(state) - 64, 0);
 
     for (unsigned int i = 0; i < RANDOM2_POOL_SIZE; i += sizeof(state))
@@ -3430,8 +3431,8 @@ static void random2(
 static void random(const unsigned char *publicKey, const unsigned char *nonce, unsigned char *output, unsigned long long outputSize)
 {
     unsigned char state[200];
-    *((__m256i *)&state[0]) = *((__m256i *)publicKey);
-    *((__m256i *)&state[32]) = *((__m256i *)nonce);
+    *((m256i *)&state[0]) = *((m256i *)publicKey);
+    *((m256i *)&state[32]) = *((m256i *)nonce);
     setMem(&state[64], sizeof(state) - 64, 0);
 
     for (unsigned long long i = 0; i < outputSize / sizeof(state); i++)

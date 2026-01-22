@@ -69,11 +69,14 @@ socket.on("data", (data) => {
         //write 5 random string as nonce and seed
 
         for (let i = 0; i < 5; i++) {
+            let nonce = generateRandomString(64);
+            let seed = generateRandomString(64);
+            console.log("Sending nonce:", nonce, "seed:", seed);
             socket.write(
                 JSON.stringify({
                     id: StratumEvents.eventsId.SUBMIT,
-                    nonce: generateRandomString(64),
-                    seed: generateRandomString(64),
+                    nonce,
+                    seed,
                     computorId: computorId,
                 }) + "\n"
             );
