@@ -46,7 +46,7 @@ interface Addon {
         computorId: string,
         md5Hash: string
     ) => void;
-    checkScore: (score: number, threshold: number) => boolean;
+    checkScore: (score: number, threshold: number, algo: number) => boolean;
     pay: (
         ip: string,
         paymentCsvString: string,
@@ -432,9 +432,8 @@ namespace NodeManager {
                         solution.seed,
                         solution.computorId
                     );
-                    let signedSolution = await NodeManager.signRawSolutionData(
-                        rawSolutionData
-                    );
+                    let signedSolution =
+                        await NodeManager.signRawSolutionData(rawSolutionData);
 
                     await sendSolutionV2(signedSolution);
 
@@ -462,16 +461,17 @@ namespace NodeManager {
         solutionResult: SolutionResult = {
             md5Hash: "",
             resultScore: -1,
+            algo: 0,
         },
         fromCluster: boolean = false
     ) {
-        let { md5Hash, resultScore } = solutionResult;
+        let { md5Hash, resultScore, algo } = solutionResult;
         if (!md5Hash) return;
         if (md5Hash.length > 32) {
             md5Hash = md5Hash.slice(0, 32);
         }
-        let isShare = addon.checkScore(resultScore, difficulty.pool);
-        let isSolution = addon.checkScore(resultScore, difficulty.net);
+        let isShare = addon.checkScore(resultScore, difficulty.pool, algo);
+        let isSolution = addon.checkScore(resultScore, difficulty.net, algo);
 
         if (difficulty.pool === difficulty.net) {
             //we dont use share in this case (solo mining)
@@ -503,6 +503,7 @@ namespace NodeManager {
                 isShare,
                 isSolution,
                 resultScore,
+                algo,
             });
         }
     }

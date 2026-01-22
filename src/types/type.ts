@@ -53,9 +53,11 @@ export type SolutionPendingToProcess = Solution & {
 export interface SolutionResult {
     md5Hash: string;
     resultScore: number;
+    algo: number;
 }
 
 export type SolutionNetState = Solution & {
+    algo: number;
     resultScore: number;
     isSolution: boolean;
     isWritten: boolean;

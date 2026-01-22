@@ -18,14 +18,8 @@ using namespace Napi;
 Socket qsocket;
 string globalIp;
 
-typedef ScoreFunction<NUMBER_OF_INPUT_NEURONS,
-                      NUMBER_OF_OUTPUT_NEURONS,
-                      NUMBER_OF_TICKS,
-                      NUMBER_OF_NEIGHBORS,
-                      POPULATION_THRESHOLD,
-                      NUMBER_OF_MUTATIONS,
-                      SOLUTION_THRESHOLD_DEFAULT,
-                      1>
+typedef ScoreFunction<
+    NUMBER_OF_SOLUTION_PROCESSORS>
     ScoreFunctionType;
 Napi::ThreadSafeFunction tsfn;
 std::atomic_bool stop_thread = false;
@@ -51,15 +45,20 @@ void VerifySolutionThread(SolutionQueue *solutionQueue, ScoreFunctionType *score
             m256i nonce256;
             m256i seed256;
             string md5Hash = solution.md5Hash;
-
             hexToByte(solution.nonce, nonce256.m256i_u8, 32);
             hexToByte(solution.miningSeed, seed256.m256i_u8, 32);
             getPublicKeyFromIdentity((const unsigned char *)solution.computorId, (unsigned char *)&computorPublicKey);
             score->initMiningData(seed256);
             unsigned int resultScore = (*score)(0, computorPublicKey, seed256, nonce256);
-
-            tsfn.BlockingCall([resultScore, md5Hash](Napi::Env env, Napi::Function jsCallback)
-                              {   HandleScope scope(env);   Object obj = Object::New(env); obj.Set("md5Hash", md5Hash); obj.Set("resultScore", resultScore);  jsCallback.Call({obj}); });
+            score_engine::AlgoType selectedAlgo = score_engine::getAlgoType(nonce256.m256i_u8);
+            tsfn.BlockingCall([resultScore, md5Hash, selectedAlgo](Napi::Env env, Napi::Function jsCallback)
+                              {
+                                  HandleScope scope(env);
+                                  Object obj = Object::New(env);
+                                  obj.Set("md5Hash", md5Hash);
+                                  obj.Set("resultScore", resultScore);
+                                  obj.Set("algo", static_cast<int>(selectedAlgo));
+                                  jsCallback.Call({obj}); });
         }
 
         this_thread::sleep_for(chrono::milliseconds(100));
@@ -432,8 +431,9 @@ Napi::Value checkScore(const Napi::CallbackInfo &info)
 {
     int score = info[0].As<Napi::Number>().Int32Value();
     int threshold = info[1].As<Napi::Number>().Int32Value();
+    int algo = info[2].As<Napi::Number>().Int32Value();
 
-    return Napi::Boolean::New(info.Env(), ScoreFunctionType::isValidScore(score) && ScoreFunctionType::isGoodScore(score, threshold));
+    return Napi::Boolean::New(info.Env(), ScoreFunctionType::isValidScore(score, algo) && ScoreFunctionType::isGoodScore(score, threshold, algo));
 }
 
 Napi::Value pay(const Napi::CallbackInfo &info)
