@@ -544,7 +544,7 @@ struct Socket
                 }
                 unsigned char *backenSeed = ((unsigned char *)request + sizeof(BroadcastMessage));
                 unsigned char *backendNonce = ((unsigned char *)request + sizeof(BroadcastMessage) + 32);
-                char hex[64];
+                char hex[65] = {0};
                 byteToHex(backenSeed, hex, 32);
                 byteToHex(backendNonce, hex, 32);
             }
