@@ -272,6 +272,12 @@ public:
         getPublicKeyFromIdentity((const unsigned char *)computorId.c_str(), (unsigned char *)&computorPublicKey);
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
+        if (!isOk)
+        {
+            sendSocket.close();
+            log("error", "Failed to connect to node " + ip);
+            return;
+        }
         isOk = sendSocket.sendSolution(computorPublicKey, nonce, seed, secretSeed.c_str()) && isOk;
         sendSocket.close();
     }
@@ -307,6 +313,12 @@ public:
     {
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
+        if (!isOk)
+        {
+            sendSocket.close();
+            log("error", "Failed to connect to node " + ip);
+            return;
+        }
         isOk = sendSocket.sendSolutionBytes(solutionRaw) && isOk;
         sendSocket.close();
     }

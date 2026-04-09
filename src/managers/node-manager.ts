@@ -153,14 +153,6 @@ namespace NodeManager {
                 `${DATA_PATH}/solutionsToSubmitQueue.json`,
                 JSON.stringify(solutionsToSubmitQueue)
             );
-
-            fs.writeFileSync(
-                `${DATA_PATH}/nodeips.json`,
-                JSON.stringify({
-                    nodeIps,
-                    nodeIpsInactive,
-                })
-            );
         } catch (error) {
             LOG(
                 "error",
@@ -195,23 +187,6 @@ namespace NodeManager {
                 ...dbDifficulty,
             };
         }
-
-        let dbNodeIps = (await QatumDb.getPoolConfigCollection()?.findOne(
-            {
-                type: "nodeips",
-            },
-            {
-                projection: {
-                    _id: 0,
-                    type: 0,
-                },
-            }
-        )) as any;
-
-        if (dbNodeIps) {
-            nodeIps = dbNodeIps.nodeIps;
-            nodeIpsInactive = dbNodeIps.nodeIpsInactive;
-        }
     }
 
     export async function loadFromDisk() {
@@ -245,22 +220,6 @@ namespace NodeManager {
                     "sys",
                     `solutionsToSubmitQueue.json not found, will create new one`
                 );
-            } else {
-                LOG("error", "NodeManager.loadFromDisk: " + error.message);
-                await Platform.exit(1);
-            }
-        }
-
-        try {
-            let diskNodeIps = JSON.parse(
-                fs.readFileSync(`${DATA_PATH}/nodeips.json`, "utf-8")
-            );
-
-            nodeIps = diskNodeIps.nodeIps;
-            nodeIpsInactive = diskNodeIps.nodeIpsInactive;
-        } catch (error: any) {
-            if (error.message.includes("no such file or directory")) {
-                LOG("sys", `nodeips.json not found, will create new one`);
             } else {
                 LOG("error", "NodeManager.loadFromDisk: " + error.message);
                 await Platform.exit(1);
