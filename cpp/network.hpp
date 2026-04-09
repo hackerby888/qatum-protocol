@@ -516,21 +516,12 @@ struct Socket
     bool sendSolutionBytes(const unsigned char *packet)
     {
         {
-            cout << "first byte of packet: " << (int)packet[0] << endl;
-            cout << "TEST PACKET ON NODE" << endl;
             uint8_t digest[32];
             RequestResponseHeader *testPacket = (RequestResponseHeader *)packet;
             BroadcastMessage *request = testPacket->getPayload<BroadcastMessage>();
             const unsigned int messageSize = testPacket->size() - sizeof(RequestResponseHeader);
-            cout << "messageSize: " << messageSize << endl;
             // check signature
             KangarooTwelve((uint8_t *)request, messageSize - 64, digest, sizeof(digest));
-            cout << "first digest bytes : ";
-            for (int i = 0; i < 32; i++)
-            {
-                cout << (int)digest[i] << " ";
-            }
-            cout << endl;
             if (verify(request->sourcePublicKey, digest, (((const unsigned char *)request) + (messageSize - 64))))
             {
                 unsigned char backendSharedKeyAndGammingNonce[64];
@@ -538,12 +529,6 @@ struct Socket
 
                 if (memcmp(request->sourcePublicKey, request->destinationPublicKey, 32) == 0)
                 {
-                    cout << "sourcePublicKey and destinationPublicKey are the same (msg is encrypted)" << endl;
-                    // should never go here
-                    // if (!getSharedKey(privateKey, request->sourcePublicKey, backendSharedKeyAndGammingNonce))
-                    // {
-                    //     cout << "error while get shared key" << endl;
-                    // }
                 }
 
                 memcpy(&backendSharedKeyAndGammingNonce[32], &request->gammingNonce, 32);
@@ -561,9 +546,7 @@ struct Socket
                 unsigned char *backendNonce = ((unsigned char *)request + sizeof(BroadcastMessage) + 32);
                 char hex[64];
                 byteToHex(backenSeed, hex, 32);
-                cout << "backendSeed: " << hex << endl;
                 byteToHex(backendNonce, hex, 32);
-                cout << "backendNonce: " << hex << endl;
             }
             else
             {

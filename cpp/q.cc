@@ -273,6 +273,7 @@ public:
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
         isOk = sendSocket.sendSolution(computorPublicKey, nonce, seed, secretSeed.c_str()) && isOk;
+        sendSocket.close();
     }
 
     void OnOK() override
@@ -307,6 +308,7 @@ public:
         Socket sendSocket;
         isOk = sendSocket.connect(ip.c_str(), PORT) != -1;
         isOk = sendSocket.sendSolutionBytes(solutionRaw) && isOk;
+        sendSocket.close();
     }
 
     void OnOK() override
